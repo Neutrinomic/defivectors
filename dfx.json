@@ -1,0 +1,17 @@
+{
+  "canisters": {
+    "aggregate": {
+      "build": "./build.sh",
+      "candid": "build/main.did",
+      "type": "custom",
+      "wasm": "build/main.wasm"
+    }
+  },
+  "defaults": {
+    "build": {
+      "packtool": "mops sources"
+    }
+  },
+  "networks": { "local": { "bind": "127.0.0.1:8080", "type": "ephemeral" } },
+  "dfx": "0.15.2"
+}
