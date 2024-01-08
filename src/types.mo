@@ -7,6 +7,11 @@ import Nat32 "mo:base/Nat32";
 import Int "mo:base/Int";
 import Time "mo:base/Time";
 import Blob "mo:base/Blob";
+import Array "mo:base/Array";
+import Principal "mo:base/Principal";
+import Float "mo:base/Float";
+import Debug "mo:base/Debug";
+
 
 module {
 
@@ -38,13 +43,42 @@ module {
         // The owner of the address is this contract
         // The subaccount is derived from the TransactionId
         swap : Ledger.Account;
-        var status : ParticipantStatus;
+        ledger_decimals: Nat;
+        ledger_fee: Nat; 
+        ledger_symbol : Text;
+    };
+
+    public type TSWaiting = {
+        maker_balance: Nat;
+        taker_balance: Nat;
+        requested_rate: Float;
+        provided_rate: Float;
+        rate_in_range: Bool;
+        rate_match: Bool;
+        taker_min_calc_required: Nat;
+    };
+
+    public type TSSwapped = {
+        maker_amount: Nat;
+        maker_distributed: Bool;
+        taker_amount: Nat;
+        taker_distributed: Bool;
+        collateral_sent: Bool;
+        final_rate: Float;
+    };
+    
+    public type TSExpired = {
+        maker_refunded: Bool;
+        taker_refunded: Bool;
+        collateral_sent: Bool;
     };
 
     public type TransactionStatus = {
-        #waiting;
-        #swapped;
-        #refunded;
+        #pending;
+        #waiting: TSWaiting;
+        #swapped : TSSwapped;
+        #expired : TSExpired;
+       
     };
 
     public type TransactionRequest = {
@@ -52,12 +86,11 @@ module {
         // The entity that has to make the first move
         maker : ParticipantInput;
 
-        // if `taker_collateral` > 0 the taker has put collateral in NTN to reserve their seat.
-        // If the deal fails it gets transferred to the maker. If deal succeeds it gets returned to taker
-        taker_collateral : Nat;
+        // If the deal fails it gets transferred to the maker. If deal succeeds it gets returned to initiator
+        initiator_collateral : Nat;
 
         // Taker seat may be set when initiating the transaction
-        taker : ?ParticipantInput;
+        taker : ParticipantInput;
 
         // If the deal isn't complete after this date everything gets returned & collateral lost
         expires : Timestamp;
@@ -66,12 +99,17 @@ module {
         maker_amount : Nat;
 
         // Rate - serves to calculate the amount taker has to give
-        rate : {
-            quote : Text;
-            base : Text;
-            min : Float;
+        rate: {
             max : Float;
-        };
+            provider: RateProvider;
+        }
+    };
+
+    public type RateProvider = {
+        #xrc : {
+            taker: Text;
+            maker: Text;
+        }
     };
 
     public type Transaction = TransactionRequest and {
@@ -80,7 +118,27 @@ module {
 
         created : Timestamp;
         maker : Participant;
-        taker : ?Participant;
+        taker : Participant;
+        var status : TransactionStatus;
+    };
+
+    public type TransactionShared = TransactionRequest and {
+        initiator : Principal;
+
+        created : Timestamp;
+        maker : Participant;
+        taker : Participant;
+        status : TransactionStatus;
+    };
+
+    public module Transaction {
+        public func toShared(tr: ?Transaction) : ?TransactionShared {
+            let ?t = tr else return null;
+            ?{
+                t with
+                status = t.status;
+            }
+        }
     };
 
     public func now() : Timestamp {
@@ -97,6 +155,20 @@ module {
 
     };
 
+    public func getPrincipalSubaccount(p : Principal) : Blob {
+        let a = Array.init<Nat8>(32, 0);
+        let pa = Principal.toBlob(p);
+        a[0] := Nat8.fromNat(pa.size());
+
+        var pos = 1;
+        for (x in pa.vals()) {
+                a[pos] := x;
+                pos := pos + 1;
+            };
+
+        Blob.fromArray(Array.freeze(a));
+    };
+
     private func ENat64(value : Nat64) : [Nat8] {
         return [
             Nat8.fromNat(Nat64.toNat(value >> 56)),
@@ -110,4 +182,29 @@ module {
         ];
     };
 
+    // This looses precision but makes thigs easier. It uses only 4 symbols after the decimal point
+    public func getFloatRate(amount1: Nat, decimals1: Nat, amount2:Nat, decimals2:Nat) : Float {
+        let r0 = Float.fromInt(amount1 / (10 ** (decimals1 - 4))); 
+        let r1 = Float.fromInt(amount2 / (10 ** (decimals2 - 4)));
+        
+        (r1 / r0);
+    };
+
+
+    public func ledgerMeta( ledger_id : Principal ) : async {symbol:Text; decimals:Nat; fee:Nat} {
+        let ledger = actor (Principal.toText(ledger_id)) : Ledger.Self;
+        let meta = await ledger.icrc1_metadata();
+
+        let ?#Text(symbol) = findLedgerMetaVal("icrc1:symbol", meta) else Debug.trap("Can't find ledger symbol");
+        let ?#Nat(fee) = findLedgerMetaVal("icrc1:fee", meta) else Debug.trap("Can't find ledger fee");
+        let ?#Nat(decimals) = findLedgerMetaVal("icrc1:decimals", meta) else Debug.trap("Can't find ledger decimals");
+
+        {symbol; decimals; fee};
+    };
+
+
+    private func findLedgerMetaVal(key : Text, values : [(Text, Ledger.MetadataValue)]) : ?Ledger.MetadataValue {
+        let ?f = Array.find<(Text, Ledger.MetadataValue)>(values, func((k : Text, d : Ledger.MetadataValue)) = k == key) else return null;
+        ?f.1;
+    };
 };

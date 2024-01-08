@@ -1,6 +1,6 @@
 {
   "canisters": {
-    "aggregate": {
+    "daoswp": {
       "build": "./build.sh",
       "candid": "build/main.did",
       "type": "custom",

@@ -11,6 +11,7 @@ import Cycles "mo:base/ExperimentalCycles";
 import Float "mo:base/Float";
 import Nat64 "mo:base/Nat64";
 import Nat32 "mo:base/Nat32";
+import Int "mo:base/Int";
 
 actor class Swap() = this {
   type R<A, B> = Result.Result<A, B>;
@@ -22,14 +23,15 @@ actor class Swap() = this {
   type TransactionRequest = T.TransactionRequest;
   type Transaction = T.Transaction;
   type ParticipantStatus = T.ParticipantStatus;
+  type TransactionShared = T.TransactionShared;
 
   let nhash = Map.n64hash;
   let ntn_ledger = actor ("f54if-eqaaa-aaaaq-aacea-cai") : Ledger.Self;
 
-  let neutrinite_treasury : Ledger.Account = {
-    owner = Principal.fromText("eqsml-lyaaa-aaaaq-aacdq-cai");
-    subaccount = ?"\61\47\4b\07\1a\86\0b\27\95\75\c9\54\ce\5f\35\98\f4\f8\63\f8\c6\f4\50\86\0c\d3\c3\11\43\16\ef\2d" : ?Blob;
-  };
+  // let neutrinite_treasury : Ledger.Account = {
+  //   owner = Principal.fromText("eqsml-lyaaa-aaaaq-aacdq-cai");
+  //   subaccount = ?"\61\47\4b\07\1a\86\0b\27\95\75\c9\54\ce\5f\35\98\f4\f8\63\f8\c6\f4\50\86\0c\d3\c3\11\43\16\ef\2d" : ?Blob;
+  // };
 
   stable let _transactions = Map.new<TransactionId, Transaction>();
   stable var _nextTransactionId : TransactionId = 0;
@@ -44,13 +46,26 @@ actor class Swap() = this {
     };
   };
 
-  public shared ({ caller }) func create_transaction(req : TransactionRequest) : async TransactionId {
+  public shared ({ caller }) func create_transaction(req : TransactionRequest) : async R<TransactionId, Text> {
 
-    // Initiator pays 1 NTN fee
-    await require_ntn_transfer(caller, 1_0000_0000, neutrinite_treasury);
+    // Initiator provides collateral (Min 1 NTN)
+    if (req.initiator_collateral < 1_0000_0000) return #err("Collateral must be at least 1 NTN");
+
+    // await require_ntn_transfer(
+    //   caller,
+    //   req.initiator_collateral,
+    //   {
+    //     owner = Principal.fromActor(this);
+    //     subaccount = ?T.getPrincipalSubaccount(caller);
+    //   },
+    // );
 
     let id = _nextTransactionId;
     _nextTransactionId += 1;
+
+
+    let maker_ledger_meta = await T.ledgerMeta(req.maker.ledger);
+    let taker_ledger_meta = await T.ledgerMeta(req.taker.ledger);
 
     let transaction : Transaction = {
       req with
@@ -61,51 +76,104 @@ actor class Swap() = this {
           owner = Principal.fromActor(this);
           subaccount = ?T.getTransactionSubaccount(id, #maker);
         };
-        var status = #mismatch : ParticipantStatus;
+        ledger_decimals = maker_ledger_meta.decimals;
+        ledger_fee = maker_ledger_meta.fee;
+        ledger_symbol = maker_ledger_meta.symbol;
       } : Participant;
-      taker = do ? {
-        {
-          req.taker! with
-          swap = {
-            owner = Principal.fromActor(this);
-            subaccount = ?T.getTransactionSubaccount(id, #taker);
-          };
-          var status = #mismatch : ParticipantStatus;
-        } : Participant;
-      };
+      taker = {
+        req.taker with
+        swap = {
+          owner = Principal.fromActor(this);
+          subaccount = ?T.getTransactionSubaccount(id, #taker);
+        };
+        ledger_decimals = taker_ledger_meta.decimals;
+        ledger_fee = taker_ledger_meta.fee;
+        ledger_symbol = taker_ledger_meta.symbol;
+      } : Participant;
+
       created = T.now();
+      var status = #pending : T.TransactionStatus;
     };
 
     Map.set(_transactions, nhash, id, transaction);
-    id;
+    #ok id;
   };
 
-  // public query func get_transaction(id : TransactionId) : async ?Transaction {
-  //   Map.get(_transactions, nhash, id);
-  // };
+  public query func get_transaction(id : TransactionId) : async ?TransactionShared {
+    T.Transaction.toShared(Map.get(_transactions, nhash, id));
+  };
+
+  public shared func update_transaction(id : TransactionId) : async () {
+    await update_transaction_status(id);
+  };
 
   private func update_transaction_status(txid : TransactionId) : async () {
     let ?tx = Map.get(_transactions, nhash, txid) else Debug.trap("no such transaction");
 
-    // if maker is mismatching check if matching
+    let maker_ledger = actor (Principal.toText(tx.maker.ledger)) : Ledger.Self;
+    let taker_ledger = actor (Principal.toText(tx.taker.ledger)) : Ledger.Self;
 
-    // get XRC rate
+    switch (tx.status) {
+      case (#pending or #waiting(_)) {
+        let maker_balance = await maker_ledger.icrc1_balance_of(tx.maker.swap);
 
-    // if taker is mismatching check if matching (if amount > rate*given)
+        let taker_balance = await maker_ledger.icrc1_balance_of(tx.taker.swap);
 
-    // if both match mark the swap as done
+        // requested_rate from XRC
+        let requested_rate = switch(tx.rate.provider) {
+          case (#xrc(x)) {
+            await get_xrc_rate(x.maker, x.taker);
+          };
+          //...
+        };
 
-    // if swap is done and non distributed send tokens to destination addresses
+        // calculate rate from balances
+        let provided_rate = T.getFloatRate(maker_balance, tx.maker.ledger_decimals, taker_balance, tx.taker.ledger_decimals);
 
-    // if swap has expired, refund participants
+        // if maker is mismatching check if matching
+        let rate_match = provided_rate <= requested_rate;
+        let rate_in_range = requested_rate < tx.rate.max;
+        let taker_min_calc_required = Int.abs(Float.toInt((Float.fromInt(maker_balance) * Float.min(requested_rate, tx.rate.max))*Float.fromInt(10**tx.taker.ledger_decimals)));
+        let taker_amount_match = taker_min_calc_required <= taker_balance;
 
-    //-----
+        if (T.now() > tx.expires) {
+          tx.status := #expired {
+            maker_refunded = false;
+            taker_refunded = false;
+            collateral_sent = false;
+          };
+        } else {
+          if (rate_match and rate_in_range and taker_amount_match) {
+            tx.status := #swapped {
+              maker_amount = maker_balance;
+              taker_amount = taker_balance;
+              maker_distributed = false;
+              taker_distributed = false;
+              final_rate = provided_rate;
+              collateral_sent = false;
+            };
+          } else {
+            tx.status := #waiting {
+              maker_balance;
+              taker_balance;
+              requested_rate;
+              provided_rate;
+              rate_match;
+              rate_in_range;
+              taker_min_calc_required;
+            };
+          };
+        };
 
-    // let maker_ledger = actor (Principal.toText(tx.maker.ledger)) : Ledger.Self;
+      };
+      case (#swapped(sw)) {
+    
 
-    // let amount = await maker_ledger.icrc1_balance_of(tx.maker.swap);
+      };
+      case (#expired(re)) {
 
-    // get_tx_status(tx)
+      };
+    };
 
   };
 
