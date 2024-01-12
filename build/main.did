@@ -1,96 +1,69 @@
-type TransactionStatus = 
- variant {
-   expired: TSExpired;
-   pending;
-   swapped: TSSwapped;
-   waiting: TSWaiting;
- };
-type TransactionShared = 
- record {
-   created: Timestamp;
-   expires: Timestamp;
-   initiator: principal;
-   initiator_collateral: nat;
-   maker: Participant;
-   maker_amount: nat;
-   rate: record {
-           max: float64;
-           provider: RateProvider;
-         };
-   status: TransactionStatus;
-   taker: Participant;
- };
-type TransactionRequest = 
- record {
-   expires: Timestamp;
-   initiator_collateral: nat;
-   maker: ParticipantInput;
-   maker_amount: nat;
-   rate: record {
-           max: float64;
-           provider: RateProvider;
-         };
-   taker: ParticipantInput;
- };
-type TransactionId = nat64;
 type Timestamp = nat32;
-type TSWaiting = 
- record {
-   maker_balance: nat;
-   provided_rate: float64;
-   rate_in_range: bool;
-   rate_match: bool;
-   requested_rate: float64;
-   taker_balance: nat;
-   taker_min_calc_required: nat;
- };
-type TSSwapped = 
- record {
-   collateral_sent: bool;
-   final_rate: float64;
-   maker_amount: nat;
-   maker_distributed: bool;
-   taker_amount: nat;
-   taker_distributed: bool;
- };
-type TSExpired = 
- record {
-   collateral_sent: bool;
-   maker_refunded: bool;
-   taker_refunded: bool;
- };
 type Swap = 
  service {
-   create_transaction: (TransactionRequest) -> (R);
-   get_transaction: (TransactionId) -> (opt TransactionShared) query;
-   update_transaction: (TransactionId) -> ();
+   create_pipe: (PipeRequest) -> (R_1);
+   get_pipe: (PipeId) -> (opt PipeShared) query;
+   settle_pipes: (PipeId, PipeId) -> (R);
+   update_pipe: (PipeId) -> ();
  };
+type SourceEndpointInput = record {ledger: principal;};
 type RateProvider = variant {xrc: record {
-                                    base: text;
-                                    quote: text;
+                                    destination: text;
+                                    source: text;
                                   };};
+type R_1 = 
+ variant {
+   err: text;
+   ok: PipeId;
+ };
 type R = 
  variant {
    err: text;
-   ok: TransactionId;
+   ok;
  };
-type ParticipantInput = 
+type PipeStatus = 
  record {
-   destination: Account;
-   ledger: principal;
+   active: bool;
+   destination_balance: nat;
+   rate: float64;
+   source_balance: nat;
+ };
+type PipeShared = 
+ record {
+   created: Timestamp;
+   destination: Endpoint;
    owner: principal;
-   refund: Account;
+   rate: DynamicRate;
+   settlement: vec PipeId__1;
+   source: Endpoint;
+   status: opt PipeStatus;
  };
-type Participant = 
+type PipeRequest = 
  record {
-   destination: Account;
+   destination: DestinationEndpointInput;
+   owner: principal;
+   rate: DynamicRate;
+   source: SourceEndpointInput;
+ };
+type PipeId__1 = nat64;
+type PipeId = nat64;
+type Endpoint = 
+ record {
+   address: Account;
    ledger: principal;
    ledger_decimals: nat;
    ledger_fee: nat;
    ledger_symbol: text;
-   owner: principal;
-   refund: Account;
-   swap: Account;
+ };
+type DynamicRate = 
+ record {
+   max: float64;
+   provider: RateProvider;
+ };
+type DestinationEndpointInput = 
+ record {
+   address: opt Account;
+   ledger: principal;
  };
 type Account = 
  record {

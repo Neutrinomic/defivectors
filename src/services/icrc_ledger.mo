@@ -1,3 +1,4 @@
+
 module {
   public type Account = { owner : Principal; subaccount : ?Blob };
   public type Allowance = { allowance : Nat; expires_at : ?Nat64 };
@@ -107,7 +108,7 @@ module {
   };
   public type Result = { #Ok : Nat; #Err : TransferError };
   public type Result_1 = { #Ok : Nat; #Err : ApproveError };
-  public type ResultTF = { #Ok : Nat; #Err : TransferFromError };
+  public type Result_2 = { #Ok : Nat; #Err : TransferFromError };
   public type StandardRecord = { url : Text; name : Text };
   public type Transaction = {
     burn : ?Burn;
@@ -185,15 +186,18 @@ module {
     #Text : Text;
     #Array : Vec;
   };
-  public type Vec = [{
-    #Int : Int;
-    #Map : [(Text, Value)];
-    #Nat : Nat;
-    #Nat64 : Nat64;
-    #Blob : Blob;
-    #Text : Text;
-    #Array : Vec;
-  }];
+  public type Vec = [
+    {
+      #Int : Int;
+      #Map : [(Text, Value)];
+      #Nat : Nat;
+      #Nat64 : Nat64;
+      #Blob : Blob;
+      #Text : Text;
+      #Array : Vec;
+    }
+  ];
+  
   public type Self = actor {
     get_blocks : shared query GetBlocksRequest -> async GetBlocksResponse;
     get_data_certificate : shared query () -> async DataCertificate;
@@ -210,6 +214,10 @@ module {
     icrc1_transfer : shared TransferArg -> async Result;
     icrc2_allowance : shared query AllowanceArgs -> async Allowance;
     icrc2_approve : shared ApproveArgs -> async Result_1;
-    icrc2_transfer_from : shared TransferFromArgs -> async ResultTF;
+    icrc2_transfer_from : shared TransferFromArgs -> ();
   };
-};
+
+  public type Oneway = actor {
+    icrc1_transfer : shared TransferArg -> ();
+  }
+}

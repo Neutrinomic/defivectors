@@ -1,4 +1,4 @@
-import Ledger "./services/ledger";
+import Ledger "./services/icrc_ledger";
 import I "mo:itertools/Iter";
 import Iter "mo:base/Iter";
 import Nat8 "mo:base/Nat8";
@@ -11,132 +11,97 @@ import Array "mo:base/Array";
 import Principal "mo:base/Principal";
 import Float "mo:base/Float";
 import Debug "mo:base/Debug";
-
+import Vector "mo:vector";
+import Nat "mo:base/Nat";
 
 module {
 
-    public type TransactionId = Nat64;
+    public type DVectorId = Nat64;
     public type Timestamp = Nat32;
 
-    public type ParticipantInput = {
-        // Who owns the seat
-        owner : Principal;
+    public type SwapRequest = {
+        id : DVectorId;
+        amount : Nat;
+    };
 
-        // Refund address is deal fails
-        refund : Ledger.Account;
+    public type SwapResult = {
+        recievedSource: Nat;
+        sentDestination: Nat;
+        returnedDestination: Nat;
+    };
 
-        // Destination address if deal succeeds
-        destination : Ledger.Account;
-
-        // Ledger & amount of the token this seat provides
+    public type SourceEndpointInput = {
         ledger : Principal;
-
     };
 
-    public type ParticipantStatus = {
-        #match;
-        #mismatch;
+    public type DestinationEndpointInput = {
+        address : ?Ledger.Account; // specify if external
+        ledger : Principal;
     };
 
-    public type Participant = ParticipantInput and {
-        // The address this seat has to send tokens to
-        // The owner of the address is this contract
-        // The subaccount is derived from the TransactionId
-        swap : Ledger.Account;
+    public type Endpoint = {
+        address : Ledger.Account;
         ledger_decimals: Nat;
         ledger_fee: Nat; 
         ledger_symbol : Text;
+        ledger : Principal;
     };
 
-    public type TSWaiting = {
-        maker_balance: Nat;
-        taker_balance: Nat;
-        requested_rate: Float;
-        provided_rate: Float;
-        rate_in_range: Bool;
-        rate_match: Bool;
-        taker_min_calc_required: Nat;
+    public type DynamicRate = {
+        max : Float;
+        provider: RateProvider;
     };
 
-    public type TSSwapped = {
-        maker_amount: Nat;
-        maker_distributed: Bool;
-        taker_amount: Nat;
-        taker_distributed: Bool;
-        collateral_sent: Bool;
-        final_rate: Float;
-    };
-    
-    public type TSExpired = {
-        maker_refunded: Bool;
-        taker_refunded: Bool;
-        collateral_sent: Bool;
-    };
+    public type DVectorRequest = {
+        owner : Principal;
 
-    public type TransactionStatus = {
-        #pending;
-        #waiting: TSWaiting;
-        #swapped : TSSwapped;
-        #expired : TSExpired;
-       
-    };
+        source : SourceEndpointInput;
 
-    public type TransactionRequest = {
-
-        // The entity that has to make the first move
-        maker : ParticipantInput;
-
-        // If the deal fails it gets transferred to the maker. If deal succeeds it gets returned to initiator
-        initiator_collateral : Nat;
-
-        // Taker seat may be set when initiating the transaction
-        taker : ParticipantInput;
-
-        // If the deal isn't complete after this date everything gets returned & collateral lost
-        expires : Timestamp;
-
-        // The amount maker wants to give
-        maker_amount : Nat;
+        destination : DestinationEndpointInput;
 
         // Rate - serves to calculate the amount taker has to give
-        rate: {
-            max : Float;
-            provider: RateProvider;
-        }
+        rate: DynamicRate;
+    };
+
+    public type DVector = {
+        owner : Principal;
+        created : Timestamp;
+        source : Endpoint;
+        var source_balance : Nat;
+        destination : Endpoint;
+        var destination_balance : Nat;
+        rate: DynamicRate;
+        settlement: Vector.Vector<DVectorId>;
     };
 
     public type RateProvider = {
         #xrc : {
-            taker: Text;
-            maker: Text;
+            source: Text;
+            destination: Text;
         }
     };
 
-    public type Transaction = TransactionRequest and {
-        // The entity that creates the Order. It doesn't have to be the maker - it will require too many proposals when the maker or taker is a DAO
-        initiator : Principal;
 
+
+    public type DVectorShared = {
+        owner : Principal;
         created : Timestamp;
-        maker : Participant;
-        taker : Participant;
-        var status : TransactionStatus;
+        source : Endpoint;
+        source_balance : Nat;
+        destination : Endpoint;
+        destination_balance : Nat;
+        rate: DynamicRate;
+        settlement : [DVectorId];
     };
 
-    public type TransactionShared = TransactionRequest and {
-        initiator : Principal;
-
-        created : Timestamp;
-        maker : Participant;
-        taker : Participant;
-        status : TransactionStatus;
-    };
-
-    public module Transaction {
-        public func toShared(tr: ?Transaction) : ?TransactionShared {
+    public module DVector {
+        public func toShared(tr: ?DVector) : ?DVectorShared {
             let ?t = tr else return null;
             ?{
                 t with
-                status = t.status;
+                source_balance = t.source_balance;
+                destination_balance = t.destination_balance;
+                settlement = Vector.toArray(t.settlement)
             }
         }
     };
@@ -145,14 +110,12 @@ module {
         Nat32.fromNat(Int.abs(Time.now() / 1000000000));
     };
 
-    public func getTransactionSubaccount(txid : TransactionId, who : { #taker; #maker; #collateral }) : Blob {
+    public func getDVectorSubaccount(txid : DVectorId, who : { #source; #destination }) : Blob {
         let whobit : Nat8 = switch (who) {
-            case (#maker) 1;
-            case (#taker) 2;
-            case (#collateral) 3;
+            case (#source) 1;
+            case (#destination) 2;
         };
         Blob.fromArray(Iter.toArray(I.pad(I.flattenArray<Nat8>([[whobit], ENat64(txid)]), 32, 0 : Nat8)));
-
     };
 
     public func getPrincipalSubaccount(p : Principal) : Blob {
@@ -182,12 +145,19 @@ module {
         ];
     };
 
-    // This looses precision but makes thigs easier. It uses only 4 symbols after the decimal point
     public func getFloatRate(amount1: Nat, decimals1: Nat, amount2:Nat, decimals2:Nat) : Float {
-        let r0 = Float.fromInt(amount1 / (10 ** (decimals1 - 4))); 
-        let r1 = Float.fromInt(amount2 / (10 ** (decimals2 - 4)));
+        let r0 = floatAmount(amount1, decimals1); 
+        let r1 = floatAmount(amount2, decimals2); 
         
         (r1 / r0);
+    };
+
+    public func floatAmount(amount: Nat, decimals:Nat) : Float {
+        Float.fromInt(amount)/ (10 ** Float.fromInt(decimals)); 
+    };
+
+    public func natAmount(amount: Float, decimals:Nat) : Nat {
+        Int.abs(Float.toInt(amount * (10 ** Float.fromInt(decimals)))); 
     };
 
 

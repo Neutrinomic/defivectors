@@ -2,6 +2,6 @@
 
 Designed to allow Neutrinite DAO to manage its treasury
 
-under development
+under heavy development
 
 

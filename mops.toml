@@ -2,3 +2,4 @@
 base = "0.10.2"
 map = "9.0.1"
 itertools = "0.1.2"
+vector = "0.2.0"
