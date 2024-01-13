@@ -70,6 +70,7 @@ module {
         created : Timestamp;
         source : Endpoint;
         var source_balance : Nat;
+        var tradable_source_balance : Nat;
         destination : Endpoint;
         var destination_balance : Nat;
         algorate: AlgoRate;
@@ -83,6 +84,7 @@ module {
         created : Timestamp;
         source : Endpoint;
         source_balance : Nat;
+        tradable_source_balance : Nat;
         destination : Endpoint;
         destination_balance : Nat;
         algorate: AlgoRate;
@@ -99,6 +101,7 @@ module {
                 source_balance = t.source_balance;
                 rate = t.rate;
                 active = t.active;
+                tradable_source_balance = t.tradable_source_balance;
                 destination_balance = t.destination_balance;
                 settlement = Vector.toArray(t.settlement)
             }
