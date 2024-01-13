@@ -43,7 +43,6 @@ module {
                             v.source.address == tr.from and v.source.ledger == mem.ledger
                         }) else continue loopentries; // Didn't come from one of our vectors
 
-                        
                     };
                     if (tr.from == v.destination.address) {
                         // tokens removed from destination

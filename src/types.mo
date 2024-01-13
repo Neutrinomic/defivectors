@@ -16,8 +16,10 @@ import Nat "mo:base/Nat";
 
 module {
 
-    public type DVectorId = Nat64;
+    public type DVectorId = Nat32;
     public type Timestamp = Nat32;
+
+    public type TokenId = Nat16;
 
     public type SwapRequest = {
         id : DVectorId;
@@ -47,9 +49,8 @@ module {
         ledger : Principal;
     };
 
-    public type DynamicRate = {
+    public type AlgoRate = {
         max : Float;
-        provider: RateProvider;
     };
 
     public type DVectorRequest = {
@@ -60,28 +61,22 @@ module {
         destination : DestinationEndpointInput;
 
         // Rate - serves to calculate the amount taker has to give
-        rate: DynamicRate;
+        algorate: AlgoRate;
     };
 
     public type DVector = {
+        id: DVectorId;
         owner : Principal;
         created : Timestamp;
         source : Endpoint;
         var source_balance : Nat;
         destination : Endpoint;
         var destination_balance : Nat;
-        rate: DynamicRate;
+        algorate: AlgoRate;
+        var rate : Float;
+        var active : Bool;
         settlement: Vector.Vector<DVectorId>;
     };
-
-    public type RateProvider = {
-        #xrc : {
-            source: Text;
-            destination: Text;
-        }
-    };
-
-
 
     public type DVectorShared = {
         owner : Principal;
@@ -90,7 +85,9 @@ module {
         source_balance : Nat;
         destination : Endpoint;
         destination_balance : Nat;
-        rate: DynamicRate;
+        algorate: AlgoRate;
+        rate: Float;
+        active : Bool;
         settlement : [DVectorId];
     };
 
@@ -100,6 +97,8 @@ module {
             ?{
                 t with
                 source_balance = t.source_balance;
+                rate = t.rate;
+                active = t.active;
                 destination_balance = t.destination_balance;
                 settlement = Vector.toArray(t.settlement)
             }
@@ -110,12 +109,12 @@ module {
         Nat32.fromNat(Int.abs(Time.now() / 1000000000));
     };
 
-    public func getDVectorSubaccount(txid : DVectorId, who : { #source; #destination }) : Blob {
+    public func getDVectorSubaccount(vid : DVectorId, who : { #source; #destination }) : Blob {
         let whobit : Nat8 = switch (who) {
             case (#source) 1;
             case (#destination) 2;
         };
-        Blob.fromArray(Iter.toArray(I.pad(I.flattenArray<Nat8>([[whobit], ENat64(txid)]), 32, 0 : Nat8)));
+        Blob.fromArray(Iter.toArray(I.pad(I.flattenArray<Nat8>([[whobit], ENat32(vid)]), 32, 0 : Nat8)));
     };
 
     public func getPrincipalSubaccount(p : Principal) : Blob {
@@ -132,16 +131,25 @@ module {
         Blob.fromArray(Array.freeze(a));
     };
 
-    private func ENat64(value : Nat64) : [Nat8] {
+    // private func ENat64(value : Nat64) : [Nat8] {
+    //     return [
+    //         Nat8.fromNat(Nat64.toNat(value >> 56)),
+    //         Nat8.fromNat(Nat64.toNat((value >> 48) & 255)),
+    //         Nat8.fromNat(Nat64.toNat((value >> 40) & 255)),
+    //         Nat8.fromNat(Nat64.toNat((value >> 32) & 255)),
+    //         Nat8.fromNat(Nat64.toNat((value >> 24) & 255)),
+    //         Nat8.fromNat(Nat64.toNat((value >> 16) & 255)),
+    //         Nat8.fromNat(Nat64.toNat((value >> 8) & 255)),
+    //         Nat8.fromNat(Nat64.toNat(value & 255)),
+    //     ];
+    // };
+
+    private func ENat32(value : Nat32) : [Nat8] {
         return [
-            Nat8.fromNat(Nat64.toNat(value >> 56)),
-            Nat8.fromNat(Nat64.toNat((value >> 48) & 255)),
-            Nat8.fromNat(Nat64.toNat((value >> 40) & 255)),
-            Nat8.fromNat(Nat64.toNat((value >> 32) & 255)),
-            Nat8.fromNat(Nat64.toNat((value >> 24) & 255)),
-            Nat8.fromNat(Nat64.toNat((value >> 16) & 255)),
-            Nat8.fromNat(Nat64.toNat((value >> 8) & 255)),
-            Nat8.fromNat(Nat64.toNat(value & 255)),
+            Nat8.fromNat(Nat32.toNat(value >> 24)),
+            Nat8.fromNat(Nat32.toNat((value >> 16) & 255)),
+            Nat8.fromNat(Nat32.toNat((value >> 8) & 255)),
+            Nat8.fromNat(Nat32.toNat(value & 255)),
         ];
     };
 
