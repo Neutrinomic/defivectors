@@ -6,6 +6,9 @@ import Option "mo:base/Option";
 import Debug "mo:base/Debug";
 import Nat "mo:base/Nat";
 import Float "mo:base/Float";
+import Ledger "./services/icrc_ledger";
+import Principal "mo:base/Principal";
+import Vector "mo:vector";
 
 module {
 
@@ -28,7 +31,7 @@ module {
         |> Iter.filter<(K, V)>(
             _,
             func(k, v) : Bool {
-                v.source.ledger == ledger_from and v.source_balance > v.source.ledger_fee * 10 and v.active == true
+                v.source.ledger == ledger_from and v.source_balance > v.source.ledger_fee * 10 and v.active == true and v.amount_available > 0;
             },
         )
         |> Iter.sort<(K, V)>(_, func((k, v), (k2, v2)) = compareVectorRates(v, v2)) // we want the highest rates first
@@ -38,7 +41,7 @@ module {
         |> Iter.filter<(K, V)>(
             _,
             func(k, v) : Bool {
-                v.source.ledger == ledger_to and v.source_balance > v.source.ledger_fee * 10 and v.active == true
+                v.source.ledger == ledger_to and v.source_balance > v.source.ledger_fee * 10 and v.active == true and v.amount_available > 0;
             },
         )
         |> Iter.sort<(K, V)>(_, func((k, v), (k2, v2)) = compareVectorRates(v2, v)) // flipped for reversed order. we want lowest rates first
@@ -63,34 +66,58 @@ module {
             let final_rate = (left_rate + right_rate) / 2;
             if (final_rate > left_rate or final_rate < right_rate) return; // no overlap we are done
 
-            // use tradable_source_balance to create a transfer between the two vectors
+            // use amount_available to create a transfer between the two vectors
             // AI add from here...
             
+            var left_tradable = T.floatAmount(left.amount_available, left.source.ledger_decimals);
+            var right_tradable = T.floatAmount(right.amount_available, right.source.ledger_decimals);
+
             // Determine the maximum amount that can be transferred
-            var left_max_transferable = T.floatAmount(left.tradable_source_balance, left.source.ledger_decimals);
-            var right_max_transferable = T.floatAmount(right.tradable_source_balance, right.source.ledger_decimals) * final_rate;
+            var left_max_transferable = left_tradable;
+            var right_max_transferable = right_tradable * final_rate;
 
-            let transfer_amount = Float.min(left_max_transferable, right_max_transferable);
+            let left_transfer_amount = Float.min(left_max_transferable, right_max_transferable);
 
-            // Execute transfers
             // Transfer from left to right
-            left.tradable_source_balance := left.tradable_source_balance -  T.natAmount(transfer_amount, left.source.ledger_decimals);
-            right.destination_balance := right.destination_balance +  T.natAmount(transfer_amount, left.source.ledger_decimals);
+            left_tradable -= left_transfer_amount;
+
+            make_transaction(left_id, left, right_id, right, left_transfer_amount);
 
             // Transfer from right to left (considering the rate)
-            let right_transfer_amount = transfer_amount / final_rate;
-            right.tradable_source_balance := right.tradable_source_balance - T.natAmount(right_transfer_amount, left.source.ledger_decimals);
-            left.destination_balance := left.destination_balance + T.natAmount(right_transfer_amount, left.source.ledger_decimals);
+            let right_transfer_amount = left_transfer_amount / final_rate;
+            right_tradable -= right_transfer_amount;
+
+            make_transaction(right_id, right, left_id, left, right_transfer_amount);
 
             // Update the vectors if partial transfer
-            if (left.tradable_source_balance == 0) {
-                left_index := left_index + 1;
+            if (left_tradable == 0) {
+                left_index += 1;
             };
-            if (right.tradable_source_balance == 0) {
-                right_index := right_index + 1;
+            if (right_tradable == 0) {
+                right_index += 1;
             }
 
         };
+    };
+
+    private func make_transaction(from_id: T.DVectorId, from : V, to_id: T.DVectorId,  to : V, amount : Float) {
+
+        let amountNat = T.natAmount(amount, from.source.ledger_decimals);
+
+        let tx:T.UnconfirmedTransaction = {
+            amount = amountNat;
+            timestamp = T.now();
+            from_id = from_id;
+            to_id = to_id;
+            from = from.source.address;
+            to = to.destination.address;
+            fee = from.source.ledger_fee;
+        };
+
+        from.amount_available -= amountNat;
+        Vector.add(from.unconfirmed_transactions, tx);
+
+
     };
 
 };

@@ -30,9 +30,10 @@ actor class Swap() = this {
   type SwapRequest = T.SwapRequest;
   type SwapResult = T.SwapResult;
 
-  let nhash = Map.n64hash;
-  let ntn_ledger = actor ("f54if-eqaaa-aaaaq-aacea-cai") : Ledger.Self;
-
+  let nhash = Map.n32hash;
+  let NTN_ledger = actor ("f54if-eqaaa-aaaaq-aacea-cai") : Ledger.Self;
+  let ICP_ledger = Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai");
+  let BTC_ledger = Principal.fromText("mxzaz-hqaaa-aaaar-qaada-cai");
   // let neutrinite_treasury : Ledger.Account = {
   //   owner = Principal.fromText("eqsml-lyaaa-aaaaq-aacdq-cai");
   //   subaccount = ?"\61\47\4b\07\1a\86\0b\27\95\75\c9\54\ce\5f\35\98\f4\f8\63\f8\c6\f4\50\86\0c\d3\c3\11\43\16\ef\2d" : ?Blob;
@@ -65,104 +66,28 @@ actor class Swap() = this {
   // };
 
   // When there are dvectors in opposite directions, match them
-  private func match_settlement(pid : DVectorId) : () {
-    let ?dvector = Map.get(_dvectors, nhash, pid) else Debug.trap("no such dvector");
+  // private func match_settlement(pid : DVectorId) : () {
+  //   let ?dvector = Map.get(_dvectors, nhash, pid) else Debug.trap("no such dvector");
 
-    let other = Map.entries(_dvectors);
-    for ((oid, odvector) in other) {
-      if (dvector.destination.ledger == odvector.source.ledger) {
-        switch (Vector.indexOf<DVectorId>(oid, dvector.settlement, Nat64.equal)) {
-          case (?found)();
-          case (null) Vector.add(dvector.settlement, oid);
-        };
-      };
-      if (odvector.destination.ledger == dvector.source.ledger) {
-        switch (Vector.indexOf<DVectorId>(pid, odvector.settlement, Nat64.equal)) {
-          case (?found)();
-          case (null) Vector.add(odvector.settlement, pid);
-        };
-      };
-    };
-  };
+  //   let other = Map.entries(_dvectors);
+  //   for ((oid, odvector) in other) {
+  //     if (dvector.destination.ledger == odvector.source.ledger) {
+  //       switch (Vector.indexOf<DVectorId>(oid, dvector.settlement, Nat32.equal)) {
+  //         case (?found)();
+  //         case (null) Vector.add(dvector.settlement, oid);
+  //       };
+  //     };
+  //     if (odvector.destination.ledger == dvector.source.ledger) {
+  //       switch (Vector.indexOf<DVectorId>(pid, odvector.settlement, Nat32.equal)) {
+  //         case (?found)();
+  //         case (null) Vector.add(odvector.settlement, pid);
+  //       };
+  //     };
+  //   };
+  // };
 
-  public func settle_dvectors(pid : DVectorId, oid : DVectorId) : async R<(), Text> {
-    await settle(pid, oid);
-  };
 
-  private func get_dvector_rate(dvector: DVector) : Float {
-    switch(dvector.rate.provider) {
-        case (#xrc(x)) {
-          if (x.source == "ICP" and x.destination == "BTC") {
-            _ICPBTC;
-          } else if (x.source == "BTC" and x.destination == "ICP") {
-            1/_ICPBTC;
-          } else {
-            Debug.trap("unsupported xrc rate")
-          }
-        };
-      }
-  };
 
-  private func settle(pid : DVectorId, oid : DVectorId) : async R<(), Text> {
-    let ?dvector = Map.get(_dvectors, nhash, pid) else Debug.trap("no such dvector");
-
-    let ?odvector = Map.get(_dvectors, nhash, oid) else Debug.trap("no such settlement dvector");
-
-    ignore do ? {
-      let balance = dvector.source_balance;
-
-      let rate = get_dvector_rate(dvector);
-
-      let obalance = dvector.source_balance;
-      
-      let orate = get_dvector_rate(odvector);
-
-      let calcrate = 1 / rate;
-
-      let amount_t1_swap = Nat.max(Nat.min(balance / 10, 300_000), 10 * dvector.source.ledger_fee);
-
-      if (balance < amount_t1_swap + dvector.source.ledger_fee) {
-        return #err("insufficient balance p1. required " # debug_show (amount_t1_swap));
-      };
-
-      let amount_t2_swap : Nat = T.natAmount(T.floatAmount(balance, dvector.source.ledger_decimals) / rate, odvector.source.ledger_decimals);
-
-      if (obalance < amount_t2_swap + odvector.source.ledger_fee) {
-        return #err("insufficient balance p2. required " # debug_show (amount_t2_swap));
-      };
-
-      // Allow 0.1% slippage between the two rates
-      if (calcrate < orate * 0.999 or calcrate > orate * 1.001) {
-        return #err("rate mismatch " # debug_show (orate) # " - " # debug_show (calcrate));
-      };
-
-      // Transfer from one dvector to another
-      let source_ledger = actor (Principal.toText(dvector.source.ledger)) : Ledger.Oneway;
-      let destination_ledger = actor (Principal.toText(dvector.destination.ledger)) : Ledger.Oneway;
-
-      source_ledger.icrc1_transfer({
-        to = odvector.destination.address;
-        from_subaccount = dvector.source.address.subaccount;
-        amount = amount_t1_swap - dvector.source.ledger_fee;
-        memo = null;
-        created_at_time = null;
-        fee = null;
-      });
-
-      destination_ledger.icrc1_transfer({
-        to = dvector.destination.address;
-        from_subaccount = odvector.source.address.subaccount;
-        amount = amount_t2_swap - odvector.source.ledger_fee;
-        memo = null;
-        created_at_time = null;
-        fee = null;
-      });
-
-    };
-
-    #ok();
-
-  };
 
   public shared ({ caller }) func create_dvector(req : DVectorRequest) : async R<DVectorId, Text> {
 
@@ -213,18 +138,22 @@ actor class Swap() = this {
 
     let dvector : DVector = {
       owner = req.owner;
-      rate = req.rate;
+      algorate = req.algorate;
+      var active = false;
+      var rate = 0;
       created = T.now();
       source;
       var source_balance = await source_ledger.icrc1_balance_of(source.address);
+      var amount_available = 0;
       var destination_balance = await destination_ledger.icrc1_balance_of(destination.address);
       destination;
-      settlement = Vector.new<DVectorId>();
+      var unconfirmed_transactions = Vector.new();
+      var amount_in_transfers = 0;
     };
 
     Map.set(_dvectors, nhash, pid, dvector);
 
-    match_settlement(pid);
+    // match_settlement(pid);
 
     #ok pid;
   };

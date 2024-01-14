@@ -65,18 +65,29 @@ module {
     };
 
     public type DVector = {
-        id: DVectorId;
         owner : Principal;
         created : Timestamp;
         source : Endpoint;
         var source_balance : Nat;
-        var tradable_source_balance : Nat;
+        var amount_available : Nat;
+        var amount_in_transfers : Nat;
         destination : Endpoint;
         var destination_balance : Nat;
         algorate: AlgoRate;
         var rate : Float;
         var active : Bool;
-        settlement: Vector.Vector<DVectorId>;
+        var unconfirmed_transactions : Vector.Vector<UnconfirmedTransaction>;
+    };
+
+
+    public type UnconfirmedTransaction = {
+        amount : Nat;
+        timestamp : Timestamp;
+        to :Ledger.Account;
+        from : Ledger.Account;
+        fee : Nat;
+        from_id : DVectorId;
+        to_id : DVectorId;
     };
 
     public type DVectorShared = {
@@ -84,13 +95,14 @@ module {
         created : Timestamp;
         source : Endpoint;
         source_balance : Nat;
-        tradable_source_balance : Nat;
+        amount_available : Nat;
+        amount_in_transfers : Nat;
         destination : Endpoint;
         destination_balance : Nat;
         algorate: AlgoRate;
         rate: Float;
         active : Bool;
-        settlement : [DVectorId];
+        unconfirmed_transactions : [UnconfirmedTransaction];
     };
 
     public module DVector {
@@ -101,9 +113,10 @@ module {
                 source_balance = t.source_balance;
                 rate = t.rate;
                 active = t.active;
-                tradable_source_balance = t.tradable_source_balance;
+                amount_in_transfers = t.amount_in_transfers;
+                unconfirmed_transactions = Vector.toArray(t.unconfirmed_transactions);
+                amount_available = t.amount_available;
                 destination_balance = t.destination_balance;
-                settlement = Vector.toArray(t.settlement)
             }
         }
     };
