@@ -38,9 +38,9 @@ module {
         };
 
 
-        ignore Timer.recurringTimer(#seconds 60, update);
-
-        Timer.setTimer(#seconds 0, update);
-
+        public func start_timer() {
+            ignore Timer.setTimer(#seconds 0, update);
+            ignore Timer.recurringTimer(#seconds 60, update);
+        }
     }
 }

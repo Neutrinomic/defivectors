@@ -5,49 +5,57 @@ import Error "mo:base/Error";
 import Timer "mo:base/Timer";
 import Map "mo:map/Map";
 import T "../types";
+import Array "mo:base/Array";
 
 module {
 
     public type Mem = {
         var last_indexed_tx : Nat;
-        ledger : Principal;
     };
 
-    public class Indexer(mem : Mem, _dvectors : Map.Map<T.DVectorId, T.DVector>) {
+    public class Indexer({errlog: Vector.Vector<Text>; mem : Mem; ledger_id : Principal; dvectors : Map.Map<T.DVectorId, T.DVector>}) {
 
-        let log = Vector.new<Text>();
-        let ledger = actor (Principal.toText(mem.ledger)) : Ledger.Self;
+        let ledger = actor (Principal.toText(ledger_id)) : Ledger.Self;
 
         private func processtx(transactions : [Ledger.Transaction]) {
 
             for (t in transactions.vals()) {
-                label loopentries for ((k,v) in Map.entries<T.DVectorId, T.DVector>(_dvectors)) {
+                label loopentries for ((k,v) in Map.entries<T.DVectorId, T.DVector>(dvectors)) {
                     
-                    if (v.source.ledger != mem.ledger) continue loopentries;
                     let ?tr = t.transfer else continue loopentries;
 
-                    if (tr.to == v.source.address) {
-                        // tokens added to source
-                        v.source_balance := v.source_balance + tr.amount;
-                    };
-                    if (tr.from == v.source.address) {
-                        // tokens removed from source
-                        v.source_balance := v.source_balance - tr.amount;
-                    };
-                    if (tr.to == v.destination.address) {
-                        // tokens added to destination
-                        v.destination_balance := v.destination_balance - tr.amount;
+                    if (v.source.ledger == ledger_id) {
+                        if (tr.to == v.source.address) {
+                            // tokens added to source
+                            v.source_balance += tr.amount;
+                        };
+                        if (tr.from == v.source.address) {
+                            // tokens removed from source
+                            v.source_balance -= tr.amount + v.source.ledger_fee;
 
-                        // find which vector they came from based on tr.from
-                        let ?dv_from = Map.find<T.DVectorId, T.DVector>(_dvectors, func(k, v) : Bool {
-                            v.source.address == tr.from and v.source.ledger == mem.ledger
-                        }) else continue loopentries; // Didn't come from one of our vectors
+                            // look for transaction and remove it
+                            v.unconfirmed_transactions := Array.filter<T.UnconfirmedTransaction>(v.unconfirmed_transactions, func (ut) : Bool {
+                                tr.memo != ?ut.memo
+                            });
+                        };
+                    };
 
-                    };
-                    if (tr.from == v.destination.address) {
-                        // tokens removed from destination
-                        v.destination_balance := v.destination_balance - tr.amount;
-                    };
+                    if (v.destination.ledger == ledger_id) {
+                        if (tr.to == v.destination.address) {
+                            // tokens added to destination
+                            v.destination_balance += tr.amount;
+
+                            // // find which vector they came from based on tr.from
+                            // let ?dv_from = Map.find<T.DVectorId, T.DVector>(dvectors, func(k, v) : Bool {
+                            //     v.source.address == tr.from and v.source.ledger == ledger_id
+                            // }) else continue loopentries; // Didn't come from one of our vectors
+
+                        };
+                        if (tr.from == v.destination.address) {
+                            // tokens removed from destination
+                            v.destination_balance -= tr.amount + v.destination.ledger_fee;
+                        };
+                    }
                 };
                 
                 // check if tx is from or to one of our endpoint addresses
@@ -56,6 +64,16 @@ module {
         };
 
         private func proc() : async () {
+
+            // start from the end of last_indexed_tx = 0
+            if (mem.last_indexed_tx == 0) {
+                let rez = await ledger.get_transactions({
+                    start = 0;
+                    length = 0;
+                });
+                mem.last_indexed_tx := rez.log_length-1;
+            };
+
             let rez = await ledger.get_transactions({
                 start = mem.last_indexed_tx;
                 length = 1000;
@@ -76,21 +94,20 @@ module {
             };
         };
 
-        public func getlog() : async [Text] {
-            Vector.toArray(log);
-        };
 
         private func qtimer() : async () {
             try {
                 await proc();
             } catch (e) {
-                Vector.add(log, Error.message(e));
+                Vector.add(errlog, "indexers:icrc:" # Principal.toText(ledger_id) # ":" # Error.message(e))
             };
 
-            ignore Timer.setTimer(#seconds 1, qtimer);
+            ignore Timer.setTimer(#seconds 2, qtimer);
         };
 
-        ignore Timer.setTimer(#seconds 0, qtimer);
+        public func start_timer() {
+            ignore Timer.setTimer(#seconds 2, qtimer);
+        }
     };
 
 };

@@ -51,6 +51,7 @@ module {
 
     public type AlgoRate = {
         max : Float;
+        discount: Float;
     };
 
     public type DVectorRequest = {
@@ -64,7 +65,7 @@ module {
         algorate: AlgoRate;
     };
 
-    
+
 
     public type DVector = {
         owner : Principal;
@@ -77,12 +78,12 @@ module {
         algorate: AlgoRate;
         var rate : Float;
         var active : Bool;
-        var unconfirmed_transactions : Vector.Vector<UnconfirmedTransaction>;
+        var unconfirmed_transactions : [UnconfirmedTransaction];
     };
 
     public func sumAmountInTransfers(v: DVector) : Nat {
         var sum:Nat = 0;
-        for (v in Vector.vals(v.unconfirmed_transactions)) {
+        for (v in v.unconfirmed_transactions.vals()) {
             sum := sum + v.amount;
         };
         sum;
@@ -96,6 +97,20 @@ module {
         fee : Nat;
         from_id : DVectorId;
         to_id : DVectorId;
+        memo : Blob;
+        var tries : Nat;
+    };
+
+    public type UnconfirmedTransactionShared = {
+        amount : Nat;
+        timestamp : Timestamp;
+        to :Ledger.Account;
+        from : Ledger.Account;
+        fee : Nat;
+        from_id : DVectorId;
+        to_id : DVectorId;
+        memo : Blob;
+        tries : Nat;
     };
 
     public type DVectorShared = {
@@ -109,7 +124,7 @@ module {
         algorate: AlgoRate;
         rate: Float;
         active : Bool;
-        unconfirmed_transactions : [UnconfirmedTransaction];
+        unconfirmed_transactions : [UnconfirmedTransactionShared];
     };
 
     public module DVector {
@@ -120,9 +135,18 @@ module {
                 source_balance = t.source_balance;
                 rate = t.rate;
                 active = t.active;
-                unconfirmed_transactions = Vector.toArray(t.unconfirmed_transactions);
+                unconfirmed_transactions = Array.map<UnconfirmedTransaction, UnconfirmedTransactionShared>(t.unconfirmed_transactions, UnconfirmedTransaction.toShared);
                 amount_available = t.amount_available;
                 destination_balance = t.destination_balance;
+            }
+        }
+    };
+
+    public module UnconfirmedTransaction {
+        public func toShared(t: UnconfirmedTransaction) : UnconfirmedTransactionShared {
+            {
+                t with
+                tries = t.tries;
             }
         }
     };
@@ -153,18 +177,18 @@ module {
         Blob.fromArray(Array.freeze(a));
     };
 
-    // private func ENat64(value : Nat64) : [Nat8] {
-    //     return [
-    //         Nat8.fromNat(Nat64.toNat(value >> 56)),
-    //         Nat8.fromNat(Nat64.toNat((value >> 48) & 255)),
-    //         Nat8.fromNat(Nat64.toNat((value >> 40) & 255)),
-    //         Nat8.fromNat(Nat64.toNat((value >> 32) & 255)),
-    //         Nat8.fromNat(Nat64.toNat((value >> 24) & 255)),
-    //         Nat8.fromNat(Nat64.toNat((value >> 16) & 255)),
-    //         Nat8.fromNat(Nat64.toNat((value >> 8) & 255)),
-    //         Nat8.fromNat(Nat64.toNat(value & 255)),
-    //     ];
-    // };
+    public func ENat64(value : Nat64) : [Nat8] {
+        return [
+            Nat8.fromNat(Nat64.toNat(value >> 56)),
+            Nat8.fromNat(Nat64.toNat((value >> 48) & 255)),
+            Nat8.fromNat(Nat64.toNat((value >> 40) & 255)),
+            Nat8.fromNat(Nat64.toNat((value >> 32) & 255)),
+            Nat8.fromNat(Nat64.toNat((value >> 24) & 255)),
+            Nat8.fromNat(Nat64.toNat((value >> 16) & 255)),
+            Nat8.fromNat(Nat64.toNat((value >> 8) & 255)),
+            Nat8.fromNat(Nat64.toNat(value & 255)),
+        ];
+    };
 
     private func ENat32(value : Nat32) : [Nat8] {
         return [
@@ -190,8 +214,13 @@ module {
         Int.abs(Float.toInt(amount * (10 ** Float.fromInt(decimals)))); 
     };
 
+    public type LedgerMeta = {
+        symbol : Text;
+        decimals : Nat;
+        fee : Nat;
+    };
 
-    public func ledgerMeta( ledger_id : Principal ) : async {symbol:Text; decimals:Nat; fee:Nat} {
+    public func ledgerMeta( ledger_id : Principal ) : async LedgerMeta {
         let ledger = actor (Principal.toText(ledger_id)) : Ledger.Self;
         let meta = await ledger.icrc1_metadata();
 

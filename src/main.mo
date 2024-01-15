@@ -17,6 +17,11 @@ import Vector "mo:vector";
 import Nat "mo:base/Nat";
 import Timer "mo:base/Timer";
 import Rates "./rates";
+import LedgerMeta "./ledgermeta";
+import Matching "./matching";
+import IndexerICRC "./indexers/icrc";
+import IndexerICP "./indexers/icp";
+import Sender "./sender";
 
 actor class Swap() = this {
   type R<A, B> = Result.Result<A, B>;
@@ -45,13 +50,83 @@ actor class Swap() = this {
   stable let _dvectors = Map.new<DVectorId, DVector>();
   stable var _nextDVectorId : DVectorId = 0;
 
+  let _errlog = Vector.new<Text>();
+
+  let _ledgermeta = LedgerMeta.LedgerMeta({
+    ledgers = [ICP_ledger, BTC_ledger]
+  });
+  
   let _rates = Rates.Rates({
     whitelisted = [
-      // id in defiaggregator config, symbol, ledger
-      (1, Principal.fromText("mxzaz-hqaaa-aaaar-qaada-cai")), // ICP
-      (3, Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai")) // BTC
+      // id in defiaggregator config, ledger
+      (1, ICP_ledger), // ICP
+      (3, BTC_ledger) // BTC
     ]
   });
+
+  // ---
+
+  let _matching_mem : Matching.MatchingMem = {
+    var last_tx_id = 0;
+  };
+
+  let _matching = Matching.Matching({
+    mem = _matching_mem;
+    rates = _rates;
+    dvectors = _dvectors;
+    errlog = _errlog;
+  });
+
+  // ---
+
+  let _indexer_ckBTC_mem : IndexerICRC.Mem = {
+    var last_indexed_tx = 0;
+  };
+
+  let _indexer_ckBTC = IndexerICRC.Indexer({
+    ledger_id = BTC_ledger;
+    mem = _indexer_ckBTC_mem;
+    dvectors = _dvectors;
+    errlog = _errlog;
+  });
+
+  // ---
+
+  let _indexer_ICP_mem : IndexerICP.Mem = {
+    var last_indexed_tx = 0
+;
+  };
+
+  let _indexer_ICP = IndexerICP.Indexer({
+    ledger_id = ICP_ledger;
+    mem = _indexer_ICP_mem;
+    dvectors = _dvectors;
+    errlog = _errlog;
+  });
+
+  // --- 
+
+  let _sender = Sender.Sender({
+    errlog = _errlog;
+    dvectors = _dvectors;
+  });
+
+  ignore Timer.setTimer(#seconds 1, func () : async () {
+    // Some timers were not starting when directly placed in classes
+  
+    _sender.start_timer();
+    _indexer_ckBTC.start_timer();
+    _indexer_ICP.start_timer();
+  });
+
+  ignore Timer.setTimer(#seconds 1, func () : async () {
+    // Some timers were not starting when directly placed in classes
+    _ledgermeta.start_timer();
+    _rates.start_timer();
+    _matching.start_timer();
+
+  });
+
 
   // Transfer NTN from account using icrc2, trap on error
   // private func require_ntn_transfer(from : Principal, amount : Nat, reciever : Ledger.Account) : async () {
@@ -61,7 +136,12 @@ actor class Swap() = this {
   //   };
   // };
 
-
+  public query func stats() : async [Nat] {
+    [
+      _indexer_ICP_mem.last_indexed_tx,
+      _indexer_ckBTC_mem.last_indexed_tx
+    ]
+  };
 
   public shared ({ caller }) func create_dvector(req : DVectorRequest) : async R<DVectorId, Text> {
 
@@ -76,14 +156,15 @@ actor class Swap() = this {
     //   },
     // );
 
+
+    let ?source_ledger_meta = _ledgermeta.get(req.source.ledger) else return #err("source ledger meta not found");
+    let ?destination_ledger_meta = _ledgermeta.get(req.destination.ledger) else return #err("destination ledger meta not found");
+
+    let source_ledger = actor (Principal.toText(req.source.ledger)) : Ledger.Self;
+    let destination_ledger = actor (Principal.toText(req.destination.ledger)) : Ledger.Self;
+
     let pid = _nextDVectorId;
     _nextDVectorId += 1;
-
-    let source_ledger_meta = await T.ledgerMeta(req.source.ledger);
-    let destination_ledger_meta = await T.ledgerMeta(req.destination.ledger);
-
-    let source_ledger = actor (Principal.toText(dvector.source.ledger)) : Ledger.Self;
-    let destination_ledger = actor (Principal.toText(dvector.destination.ledger)) : Ledger.Self;
 
     let source : Endpoint = {
       ledger = req.source.ledger;
@@ -121,7 +202,7 @@ actor class Swap() = this {
       var amount_available = 0;
       var destination_balance = await destination_ledger.icrc1_balance_of(destination.address);
       destination;
-      var unconfirmed_transactions = Vector.new();
+      var unconfirmed_transactions = [];
     };
 
     Map.set(_dvectors, nhash, pid, dvector);
@@ -134,7 +215,9 @@ actor class Swap() = this {
   };
 
 
-
+  public query func show_log() : async [Text] {
+    Vector.toArray(_errlog);
+  };
 
   
 };

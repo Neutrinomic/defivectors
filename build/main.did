@@ -1,52 +1,29 @@
+type UnconfirmedTransactionShared = 
+ record {
+   amount: nat;
+   fee: nat;
+   from: Account;
+   from_id: DVectorId__1;
+   memo: blob;
+   timestamp: Timestamp;
+   to: Account;
+   to_id: DVectorId__1;
+   tries: nat;
+ };
 type Timestamp = nat32;
 type Swap = 
  service {
-   create_pipe: (PipeRequest) -> (R_1);
-   get_pipe: (PipeId) -> (opt PipeShared) query;
-   settle_pipes: (PipeId, PipeId) -> (R);
-   update_pipe: (PipeId) -> ();
+   create_dvector: (DVectorRequest) -> (R);
+   get_dvector: (DVectorId) -> (opt DVectorShared) query;
+   show_log: () -> (vec text) query;
+   stats: () -> (vec nat) query;
  };
 type SourceEndpointInput = record {ledger: principal;};
-type RateProvider = variant {xrc: record {
-                                    destination: text;
-                                    source: text;
-                                  };};
-type R_1 = 
- variant {
-   err: text;
-   ok: PipeId;
- };
 type R = 
  variant {
    err: text;
-   ok;
+   ok: DVectorId;
  };
-type PipeStatus = 
- record {
-   active: bool;
-   destination_balance: nat;
-   rate: float64;
-   source_balance: nat;
- };
-type PipeShared = 
- record {
-   created: Timestamp;
-   destination: Endpoint;
-   owner: principal;
-   rate: DynamicRate;
-   settlement: vec PipeId__1;
-   source: Endpoint;
-   status: opt PipeStatus;
- };
-type PipeRequest = 
- record {
-   destination: DestinationEndpointInput;
-   owner: principal;
-   rate: DynamicRate;
-   source: SourceEndpointInput;
- };
-type PipeId__1 = nat64;
-type PipeId = nat64;
 type Endpoint = 
  record {
    address: Account;
@@ -55,15 +32,38 @@ type Endpoint =
    ledger_fee: nat;
    ledger_symbol: text;
  };
-type DynamicRate = 
- record {
-   max: float64;
-   provider: RateProvider;
- };
 type DestinationEndpointInput = 
  record {
    address: opt Account;
    ledger: principal;
+ };
+type DVectorShared = 
+ record {
+   active: bool;
+   algorate: AlgoRate;
+   amount_available: nat;
+   created: Timestamp;
+   destination: Endpoint;
+   destination_balance: nat;
+   owner: principal;
+   rate: float64;
+   source: Endpoint;
+   source_balance: nat;
+   unconfirmed_transactions: vec UnconfirmedTransactionShared;
+ };
+type DVectorRequest = 
+ record {
+   algorate: AlgoRate;
+   destination: DestinationEndpointInput;
+   owner: principal;
+   source: SourceEndpointInput;
+ };
+type DVectorId__1 = nat32;
+type DVectorId = nat32;
+type AlgoRate = 
+ record {
+   discount: float64;
+   max: float64;
  };
 type Account = 
  record {
