@@ -16,6 +16,7 @@ import Option "mo:base/Option";
 import Vector "mo:vector";
 import Nat "mo:base/Nat";
 import Timer "mo:base/Timer";
+import Rates "./rates";
 
 actor class Swap() = this {
   type R<A, B> = Result.Result<A, B>;
@@ -44,9 +45,13 @@ actor class Swap() = this {
   stable let _dvectors = Map.new<DVectorId, DVector>();
   stable var _nextDVectorId : DVectorId = 0;
 
-  stable var _ICPBTC : Float = 0.0;
-
-  let exchange_rate_canister : XRC.Self = actor ("uf6dk-hyaaa-aaaaq-qaaaq-cai");
+  let _rates = Rates.Rates({
+    whitelisted = [
+      // id in defiaggregator config, symbol, ledger
+      (1, Principal.fromText("mxzaz-hqaaa-aaaar-qaada-cai")), // ICP
+      (3, Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai")) // BTC
+    ]
+  });
 
   // Transfer NTN from account using icrc2, trap on error
   // private func require_ntn_transfer(from : Principal, amount : Nat, reciever : Ledger.Account) : async () {
@@ -55,37 +60,6 @@ actor class Swap() = this {
   //     case (#Err(e)) Debug.trap(debug_show (e));
   //   };
   // };
-
-  // public shared ({caller}) func update_all_dvectors() : async () {
-  //   assert (caller == whitelisted);
-
-  //   let dvectors = Map.entries(_dvectors);
-  //   for (dvector in dvectors) {
-  //     await update_dvector_status(dvector.0);
-  //   };
-  // };
-
-  // When there are dvectors in opposite directions, match them
-  // private func match_settlement(pid : DVectorId) : () {
-  //   let ?dvector = Map.get(_dvectors, nhash, pid) else Debug.trap("no such dvector");
-
-  //   let other = Map.entries(_dvectors);
-  //   for ((oid, odvector) in other) {
-  //     if (dvector.destination.ledger == odvector.source.ledger) {
-  //       switch (Vector.indexOf<DVectorId>(oid, dvector.settlement, Nat32.equal)) {
-  //         case (?found)();
-  //         case (null) Vector.add(dvector.settlement, oid);
-  //       };
-  //     };
-  //     if (odvector.destination.ledger == dvector.source.ledger) {
-  //       switch (Vector.indexOf<DVectorId>(pid, odvector.settlement, Nat32.equal)) {
-  //         case (?found)();
-  //         case (null) Vector.add(odvector.settlement, pid);
-  //       };
-  //     };
-  //   };
-  // };
-
 
 
 
@@ -148,12 +122,9 @@ actor class Swap() = this {
       var destination_balance = await destination_ledger.icrc1_balance_of(destination.address);
       destination;
       var unconfirmed_transactions = Vector.new();
-      var amount_in_transfers = 0;
     };
 
     Map.set(_dvectors, nhash, pid, dvector);
-
-    // match_settlement(pid);
 
     #ok pid;
   };
@@ -162,67 +133,8 @@ actor class Swap() = this {
     T.DVector.toShared(Map.get(_dvectors, nhash, pid));
   };
 
-  // public shared ({ caller }) func update_dvector(pid : DVectorId) : async () {
-  //   assert (caller == whitelisted);
-  //   await update_dvector_status(pid);
-  // };
-
-  // private func update_dvector_status(pid : DVectorId) : async () {
-  //   let ?dvector = Map.get(_dvectors, nhash, pid) else Debug.trap("no such dvector");
-
-  //   let source_ledger = actor (Principal.toText(dvector.source.ledger)) : Ledger.Self;
-  //   let destination_ledger = actor (Principal.toText(dvector.destination.ledger)) : Ledger.Self;
-
-  //   // let source_balance = await source_ledger.icrc1_balance_of(dvector.source.address);
-
-  //   // let destination_balance = await destination_ledger.icrc1_balance_of(dvector.destination.address);
-
-  //   // requested_rate from XRC
-  //   let rate = switch (dvector.rate.provider) {
-  //     case (#xrc(x)) {
-  //       await get_xrc_rate(x.source, x.destination);
-  //     };
-  //     //...
-  //   };
-
-  //   // calculate rate from balances
-  //   let provided_rate = T.getFloatRate(dvector.source_balance, dvector.source.ledger_decimals, dvector.destination_balance, dvector.destination.ledger_decimals);
-
-  //   // if source is mismatching check if matching
-  //   let rate_in_range = rate < dvector.rate.max;
-  //   // let destination_min_calc_required = Int.abs(Float.toInt((T.floatRateFromNat(source_balance, dvector.source.ledger_decimals) * Float.min(rate, dvector.rate.max))*Float.fromInt(10**dvector.destination.ledger_decimals)));
-
-  //   dvector.status := ?{
-  //     rate;
-  //     active = rate_in_range;
-  //   };
-
-  // };
 
 
-  private func update_xrc_rates() : async () {
-    _ICPBTC := await get_xrc_rate("ICP", "BTC");
-  };
-
-  
-  private func get_xrc_rate(quote : Text, base : Text) : async Float {
-    Cycles.add(1_000_000_000);
-
-    let #Ok(r) = await exchange_rate_canister.get_exchange_rate({
-      timestamp = null;
-      quote_asset = { class_ = #Cryptocurrency; symbol = quote };
-      base_asset = { class_ = #Cryptocurrency; symbol = base };
-    }) else Debug.trap("Failed to get rate from XRC");
-
-    let rate : Float = Float.fromInt(Nat64.toNat(r.rate)) / 10 ** Float.fromInt(Nat32.toNat(r.metadata.decimals));
-
-    rate;
-  };
-
-
-  ignore Timer.recurringTimer(#seconds 300, update_xrc_rates);
-
-  Timer.setTimer(#seconds 0, update_xrc_rates);
 
   
 };

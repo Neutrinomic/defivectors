@@ -64,13 +64,14 @@ module {
         algorate: AlgoRate;
     };
 
+    
+
     public type DVector = {
         owner : Principal;
         created : Timestamp;
         source : Endpoint;
         var source_balance : Nat;
         var amount_available : Nat;
-        var amount_in_transfers : Nat;
         destination : Endpoint;
         var destination_balance : Nat;
         algorate: AlgoRate;
@@ -79,6 +80,13 @@ module {
         var unconfirmed_transactions : Vector.Vector<UnconfirmedTransaction>;
     };
 
+    public func sumAmountInTransfers(v: DVector) : Nat {
+        var sum:Nat = 0;
+        for (v in Vector.vals(v.unconfirmed_transactions)) {
+            sum := sum + v.amount;
+        };
+        sum;
+    };
 
     public type UnconfirmedTransaction = {
         amount : Nat;
@@ -96,7 +104,6 @@ module {
         source : Endpoint;
         source_balance : Nat;
         amount_available : Nat;
-        amount_in_transfers : Nat;
         destination : Endpoint;
         destination_balance : Nat;
         algorate: AlgoRate;
@@ -113,7 +120,6 @@ module {
                 source_balance = t.source_balance;
                 rate = t.rate;
                 active = t.active;
-                amount_in_transfers = t.amount_in_transfers;
                 unconfirmed_transactions = Vector.toArray(t.unconfirmed_transactions);
                 amount_available = t.amount_available;
                 destination_balance = t.destination_balance;

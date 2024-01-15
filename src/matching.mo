@@ -9,29 +9,47 @@ import Float "mo:base/Float";
 import Ledger "./services/icrc_ledger";
 import Principal "mo:base/Principal";
 import Vector "mo:vector";
+import Rates "./rates";
+import Timer "mo:base/Timer";
 
 module {
 
     type K = T.DVectorId;
     type V = T.DVector;
 
-    public func compareVectorRates(v1 : V, v2 : V) : Order.Order {
-        if (v1.rate == v2.rate) {
-            return #equal;
-        } else if (v1.rate > v2.rate) {
-            return #greater;
-        } else {
-            return #less;
+
+
+    public class Matching({
+        rates: Rates.Rates;
+        dvectors : Map.Map<K, V>;
+    }) {
+
+    // Recalcualte rates
+    // Find out what's tradable and what not
+    public func prepare_vectors() {
+        label preparation for ((k, v) in Map.entries(dvectors)) {
+            v.amount_available := v.source_balance - T.sumAmountInTransfers(v); // TODO: add time based availability throttle
+            let ?rate_source = rates.get_rate(v.source.ledger) else continue preparation;
+            let ?rate_destination = rates.get_rate(v.destination.ledger) else continue preparation;
+            v.rate := rate_source / rate_destination;
+            v.active := v.rate <= v.algorate.max;
         };
     };
 
-    public func settle(dvectors : Map.Map<K, V>, ledger_from : Principal, ledger_to : Principal) {
+    private func tick() : async () {
+        settle(Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai"), Principal.fromText("mxzaz-hqaaa-aaaar-qaada-cai"));
+
+    };
+
+    public func settle(ledger_left : Principal, ledger_right : Principal) {
+
+        prepare_vectors();
 
         let left_side = Map.entries(dvectors)
         |> Iter.filter<(K, V)>(
             _,
             func(k, v) : Bool {
-                v.source.ledger == ledger_from and v.source_balance > v.source.ledger_fee * 10 and v.active == true and v.amount_available > 0;
+                v.source.ledger == ledger_left and v.source_balance > v.source.ledger_fee * 10 and v.active == true and v.amount_available > 0;
             },
         )
         |> Iter.sort<(K, V)>(_, func((k, v), (k2, v2)) = compareVectorRates(v, v2)) // we want the highest rates first
@@ -41,7 +59,7 @@ module {
         |> Iter.filter<(K, V)>(
             _,
             func(k, v) : Bool {
-                v.source.ledger == ledger_to and v.source_balance > v.source.ledger_fee * 10 and v.active == true and v.amount_available > 0;
+                v.source.ledger == ledger_right and v.source_balance > v.source.ledger_fee * 10 and v.active == true and v.amount_available > 0;
             },
         )
         |> Iter.sort<(K, V)>(_, func((k, v), (k2, v2)) = compareVectorRates(v2, v)) // flipped for reversed order. we want lowest rates first
@@ -117,7 +135,22 @@ module {
         from.amount_available -= amountNat;
         Vector.add(from.unconfirmed_transactions, tx);
 
+    };
 
+    ignore Timer.recurringTimer(#seconds 60, tick);
+
+    Timer.setTimer(#seconds 0, tick);
+
+    };
+
+    public func compareVectorRates(v1 : V, v2 : V) : Order.Order {
+        if (v1.rate == v2.rate) {
+            return #equal;
+        } else if (v1.rate > v2.rate) {
+            return #greater;
+        } else {
+            return #less;
+        };
     };
 
 };
