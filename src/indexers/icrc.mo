@@ -6,6 +6,7 @@ import Timer "mo:base/Timer";
 import Map "mo:map/Map";
 import T "../types";
 import Array "mo:base/Array";
+import Nat "mo:base/Nat";
 
 module {
 
@@ -63,6 +64,10 @@ module {
             };
         };
 
+        type TransactionUnordered = {
+            start: Nat;
+            transactions: [Ledger.Transaction];
+        };
         private func proc() : async () {
 
             // start from the end of last_indexed_tx = 0
@@ -75,23 +80,44 @@ module {
             };
 
             let rez = await ledger.get_transactions({
-                start = mem.last_indexed_tx;
-                length = 1000;
-            });
-
-            processtx(rez.transactions);
-
-            mem.last_indexed_tx := mem.last_indexed_tx + rez.transactions.size();
-
-            for (atx in rez.archived_transactions.vals()) {
-                let txresp = await atx.callback({
-                    start = atx.start;
-                    length = atx.length;
+                    start = mem.last_indexed_tx;
+                    length = 1000;
                 });
-                processtx(txresp.transactions);
 
-                mem.last_indexed_tx := mem.last_indexed_tx + txresp.transactions.size();
-            };
+            if (rez.archived_transactions.size() == 0) {
+                // We can just process the transactions
+                processtx(rez.transactions);
+                mem.last_indexed_tx += rez.transactions.size();
+            } else {
+                // We need to collect transactions from archive and get them in order
+                let unordered = Vector.new<TransactionUnordered>();
+
+                for (atx in rez.archived_transactions.vals()) {
+                    let txresp = await atx.callback({
+                        start = atx.start;
+                        length = atx.length;
+                    });
+
+                    Vector.add(unordered, {
+                        start = atx.start;
+                        transactions = txresp.transactions;
+                    });
+                };
+
+                let sorted = Array.sort<TransactionUnordered>( Vector.toArray(unordered), func (a, b) = Nat.compare(a.start, b.start));
+
+                for (u in sorted.vals()) {
+                    assert(u.start == mem.last_indexed_tx);
+                    processtx(u.transactions);
+                    mem.last_indexed_tx += u.transactions.size();
+                };
+
+                if (rez.transactions.size() != 0) {
+                    processtx(rez.transactions);
+                    mem.last_indexed_tx += rez.transactions.size();
+                }
+            }
+
         };
 
 

@@ -80,6 +80,11 @@ module {
             };
         };
 
+        type TransactionUnordered = {
+            start: Nat64;
+            transactions: [Ledger.CandidBlock];
+        };
+
         private func proc() : async () {
 
             // start from the end of last_indexed_tx = 0
@@ -96,21 +101,41 @@ module {
                 length = 1000;
             });
 
-            processtx(rez.blocks);
+            if (rez.archived_blocks.size() == 0) {
+                 // We can just process the transactions
+                 processtx(rez.blocks);
+                 mem.last_indexed_tx += rez.blocks.size();
+            } else {
+                // We need to collect transactions from archive and get them in order
+                let unordered = Vector.new<TransactionUnordered>();
 
-            mem.last_indexed_tx := mem.last_indexed_tx + rez.blocks.size();
-            // TODO: check if this is correct. May result in wrong indexes when there are archived transactions
+                for (atx in rez.archived_blocks.vals()) {
+                    let #Ok(txresp) = await atx.callback({
+                        start = atx.start;
+                        length = atx.length;
+                    }) else return;
 
-            for (atx in rez.archived_blocks.vals()) {
-                let #Ok(txresp) = await atx.callback({
-                    start = atx.start;
-                    length = atx.length;
-                }) else return;
+                    Vector.add(unordered, {
+                        start = atx.start;
+                        transactions = txresp.blocks;
+                    });
+                };
 
-                processtx(txresp.blocks);
+                let sorted = Array.sort<TransactionUnordered>( Vector.toArray(unordered), func (a, b) {
+                    Nat64.compare(a.start, b.start);
+                });
 
-                mem.last_indexed_tx := mem.last_indexed_tx + txresp.blocks.size();
-            };
+                for (u in sorted.vals()) {
+                    assert(u.start == Nat64.fromNat(mem.last_indexed_tx));
+                    processtx(u.transactions);
+                    mem.last_indexed_tx += u.transactions.size();
+                };
+
+                if (rez.blocks.size() != 0) { 
+                    processtx(rez.blocks);
+                    mem.last_indexed_tx += rez.blocks.size();
+                }
+            }
         };
 
         private func qtimer() : async () {

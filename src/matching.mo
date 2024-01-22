@@ -93,7 +93,7 @@ module {
                 // if rates overlap then we have a match
                 // the final rate is the average of the two rates
                 let final_rate = (left_rate + right_rate) / 2;
-                if (final_rate > left_rate or final_rate < right_rate) return; // no overlap we are done
+                if (final_rate > left_rate or right_rate > final_rate) return; // no overlap we are done
 
                 // use amount_available to create a transfer between the two vectors
                 // AI add from here...

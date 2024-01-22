@@ -80,7 +80,7 @@ actor class Swap() = this {
   // ---
 
   let _indexer_ckBTC_mem : IndexerICRC.Mem = {
-    var last_indexed_tx = 0;
+    var last_indexed_tx = 1; // leave 0 to start from the last one
   };
 
   let _indexer_ckBTC = IndexerICRC.Indexer({
@@ -93,7 +93,7 @@ actor class Swap() = this {
   // ---
 
   let _indexer_ICP_mem : IndexerICP.Mem = {
-    var last_indexed_tx = 0
+    var last_indexed_tx = 1 // leave 0 to start from the last one
 ;
   };
 
