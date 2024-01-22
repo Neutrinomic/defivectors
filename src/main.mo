@@ -80,7 +80,9 @@ actor class Swap() = this {
   // ---
 
   let _indexer_ckBTC_mem : IndexerICRC.Mem = {
-    var last_indexed_tx = 1; // leave 0 to start from the last one
+    var last_indexed_tx = 0; // leave 0 to start from the last one
+    source2vector = Map.new<Ledger.Account, DVectorId>();
+    destination2vector = Map.new<Ledger.Account, DVectorId>();
   };
 
   let _indexer_ckBTC = IndexerICRC.Indexer({
@@ -93,8 +95,9 @@ actor class Swap() = this {
   // ---
 
   let _indexer_ICP_mem : IndexerICP.Mem = {
-    var last_indexed_tx = 1 // leave 0 to start from the last one
-;
+    var last_indexed_tx = 0; // leave 0 to start from the last one
+    source2vector = Map.new<Blob, DVectorId>();
+    destination2vector = Map.new<Blob, DVectorId>();
   };
 
   let _indexer_ICP = IndexerICP.Indexer({
@@ -207,6 +210,9 @@ actor class Swap() = this {
 
     Map.set(_dvectors, nhash, pid, dvector);
 
+    _indexer_ICP.register_vector(pid, dvector);
+    _indexer_ckBTC.register_vector(pid, dvector);
+    
     #ok pid;
   };
 

@@ -12,6 +12,8 @@ module {
 
     public type Mem = {
         var last_indexed_tx : Nat;
+        source2vector : Map.Map<Blob, T.DVectorId>;
+        destination2vector : Map.Map<Blob, T.DVectorId>;
     };
 
     public class Indexer({
@@ -23,66 +25,73 @@ module {
 
         let ledger = actor (Principal.toText(ledger_id)) : Ledger.Self;
 
+        public func register_vector(id : T.DVectorId, dv : T.DVector) {
+            if (dv.source.ledger == ledger_id) {
+                ignore Map.put<Blob, T.DVectorId>(mem.source2vector, Map.bhash, Principal.toLedgerAccount(dv.source.address.owner, dv.source.address.subaccount), id);
+            };
+
+            if (dv.destination.ledger == ledger_id) {
+                ignore Map.put<Blob, T.DVectorId>(mem.destination2vector, Map.bhash, Principal.toLedgerAccount(dv.destination.address.owner, dv.destination.address.subaccount), id);
+            };
+        };
+
+        private func get_source_vector(account : Blob) : ?T.DVectorId {
+            return Map.get<Blob, T.DVectorId>(mem.source2vector, Map.bhash, account);
+        };
+
+        private func get_destination_vector(account : Blob) : ?T.DVectorId {
+            return Map.get<Blob, T.DVectorId>(mem.destination2vector, Map.bhash, account);
+        };
+
         private func processtx(transactions : [Ledger.CandidBlock]) {
 
-            for (t in transactions.vals()) {
-                label loopentries for ((k, v) in Map.entries<T.DVectorId, T.DVector>(dvectors)) {
+            label looptx for (t in transactions.vals()) {
 
-                    let ? #Transfer(tr) = t.transaction.operation else continue loopentries;
-                    let amount = Nat64.toNat(tr.amount.e8s);
-                    let source_account = Principal.toLedgerAccount(v.source.address.owner, v.source.address.subaccount);
-                    let destination_account = Principal.toLedgerAccount(v.destination.address.owner, v.destination.address.subaccount);
+                let ? #Transfer(tr) = t.transaction.operation else continue looptx;
+                let amount = Nat64.toNat(tr.amount.e8s);
 
-                    if (v.source.ledger == ledger_id) {
+                ignore do ? {
+                    let vid = get_source_vector(tr.to);
+                    let v = Map.get<T.DVectorId, T.DVector>(dvectors, Map.n32hash, vid!);
 
-                        if (tr.to == source_account) {
-                            // tokens added to source
-                            v.source_balance += amount;
-                        };
-                        if (tr.from == source_account) {
-                            // tokens removed from source
-                            v.source_balance -= amount + v.source.ledger_fee;
-
-                            // look for transaction and remove it
-                            v.unconfirmed_transactions := Array.filter<T.UnconfirmedTransaction>(
-                                v.unconfirmed_transactions,
-                                func(ut) : Bool {
-                                    t.transaction.icrc1_memo != ?ut.memo;
-                                },
-                            );
-                        };
-                    };
-
-                    if (v.destination.ledger == ledger_id) {
-
-                        if (tr.to == destination_account) {
-                            // tokens added to destination
-                            v.destination_balance += amount;
-
-                            // find which vector they came from based on tr.from
-                            // let ?dv_from = Map.find<T.DVectorId, T.DVector>(
-                            //     dvectors,
-                            //     func(k, v) : Bool {
-                            //         source_account == tr.from and v.source.ledger == ledger_id
-                            //     },
-                            // ) else continue loopentries; // Didn't come from one of our vectors
-
-                        };
-                        if (tr.from == destination_account) {
-                            // tokens removed from destination
-                            v.destination_balance -= amount + v.destination.ledger_fee;
-                        };
-                    };
+                    v!.source_balance += amount;
                 };
 
-                // check if tx is from or to one of our endpoint addresses
+                ignore do ? {
+                    let vid = get_source_vector(tr.from);
+                    let v = Map.get<T.DVectorId, T.DVector>(dvectors, Map.n32hash, vid!);
+
+                    v!.source_balance -= amount + v!.source.ledger_fee;
+
+                    // look for a pending transaction and remove it
+                    v!.unconfirmed_transactions := Array.filter<T.UnconfirmedTransaction>(
+                        v!.unconfirmed_transactions,
+                        func(ut) : Bool {
+                            t.transaction.icrc1_memo != ?ut.memo;
+                        },
+                    );
+                };
+
+                ignore do ? {
+                    let vid = get_destination_vector(tr.to);
+                    let v = Map.get<T.DVectorId, T.DVector>(dvectors, Map.n32hash, vid!);
+
+                    v!.destination_balance += amount;
+                };
+
+                ignore do ? {
+                    let vid = get_destination_vector(tr.from);
+                    let v = Map.get<T.DVectorId, T.DVector>(dvectors, Map.n32hash, vid!);
+
+                    v!.destination_balance -= amount + v!.destination.ledger_fee;
+                };
 
             };
         };
 
         type TransactionUnordered = {
-            start: Nat64;
-            transactions: [Ledger.CandidBlock];
+            start : Nat64;
+            transactions : [Ledger.CandidBlock];
         };
 
         private func proc() : async () {
@@ -102,9 +111,9 @@ module {
             });
 
             if (rez.archived_blocks.size() == 0) {
-                 // We can just process the transactions
-                 processtx(rez.blocks);
-                 mem.last_indexed_tx += rez.blocks.size();
+                // We can just process the transactions
+                processtx(rez.blocks);
+                mem.last_indexed_tx += rez.blocks.size();
             } else {
                 // We need to collect transactions from archive and get them in order
                 let unordered = Vector.new<TransactionUnordered>();
@@ -115,27 +124,33 @@ module {
                         length = atx.length;
                     }) else return;
 
-                    Vector.add(unordered, {
-                        start = atx.start;
-                        transactions = txresp.blocks;
-                    });
+                    Vector.add(
+                        unordered,
+                        {
+                            start = atx.start;
+                            transactions = txresp.blocks;
+                        },
+                    );
                 };
 
-                let sorted = Array.sort<TransactionUnordered>( Vector.toArray(unordered), func (a, b) {
-                    Nat64.compare(a.start, b.start);
-                });
+                let sorted = Array.sort<TransactionUnordered>(
+                    Vector.toArray(unordered),
+                    func(a, b) {
+                        Nat64.compare(a.start, b.start);
+                    },
+                );
 
                 for (u in sorted.vals()) {
-                    assert(u.start == Nat64.fromNat(mem.last_indexed_tx));
+                    assert (u.start == Nat64.fromNat(mem.last_indexed_tx));
                     processtx(u.transactions);
                     mem.last_indexed_tx += u.transactions.size();
                 };
 
-                if (rez.blocks.size() != 0) { 
+                if (rez.blocks.size() != 0) {
                     processtx(rez.blocks);
                     mem.last_indexed_tx += rez.blocks.size();
-                }
-            }
+                };
+            };
         };
 
         private func qtimer() : async () {
@@ -146,11 +161,12 @@ module {
             };
 
             ignore Timer.setTimer(#seconds 2, qtimer);
+
         };
 
         public func start_timer() {
             ignore Timer.setTimer(#seconds 2, qtimer);
-        }
+        };
     };
 
 };
