@@ -7,6 +7,8 @@ import Map "mo:map/Map";
 import T "../types";
 import Nat64 "mo:base/Nat64";
 import Array "mo:base/Array";
+import History "../history";
+import Blob "mo:base/Blob";
 
 module {
 
@@ -14,6 +16,7 @@ module {
         var last_indexed_tx : Nat;
         source2vector : Map.Map<Blob, T.DVectorId>;
         destination2vector : Map.Map<Blob, T.DVectorId>;
+        var paused: Bool;
     };
 
     public class Indexer({
@@ -21,6 +24,7 @@ module {
         mem : Mem;
         ledger_id : Principal;
         dvectors : Map.Map<T.DVectorId, T.DVector>;
+        history : History.History;
     }) {
 
         let ledger = actor (Principal.toText(ledger_id)) : Ledger.Self;
@@ -51,39 +55,72 @@ module {
                 let amount = Nat64.toNat(tr.amount.e8s);
 
                 ignore do ? {
-                    let vid = get_source_vector(tr.to);
-                    let v = Map.get<T.DVectorId, T.DVector>(dvectors, Map.n32hash, vid!);
+                    let vid = get_source_vector(tr.to)!;
+                    let v = Map.get<T.DVectorId, T.DVector>(dvectors, Map.n32hash, vid)!;
+                    let fee = Nat64.toNat(tr.fee.e8s);
 
-                    v!.source_balance += amount;
+                    v.source_balance += amount;
+
+                    history.add([v], #source_in({
+                        vid = vid;
+                        amount = amount;
+                        fee = fee;
+                    }))
                 };
 
                 ignore do ? {
-                    let vid = get_source_vector(tr.from);
-                    let v = Map.get<T.DVectorId, T.DVector>(dvectors, Map.n32hash, vid!);
+                    let vid = get_source_vector(tr.from)!;
+                    let v = Map.get<T.DVectorId, T.DVector>(dvectors, Map.n32hash, vid)!;
+                    let fee = Nat64.toNat(tr.fee.e8s);
 
-                    v!.source_balance -= amount + v!.source.ledger_fee;
+                    v.source_balance -= amount + v.source.ledger_fee;
 
                     // look for a pending transaction and remove it
-                    v!.unconfirmed_transactions := Array.filter<T.UnconfirmedTransaction>(
-                        v!.unconfirmed_transactions,
+                    v.unconfirmed_transactions := Array.filter<T.UnconfirmedTransaction>(
+                        v.unconfirmed_transactions,
                         func(ut) : Bool {
                             t.transaction.icrc1_memo != ?ut.memo;
                         },
                     );
+
+                    history.add([v], #source_out({
+                        vid = vid;
+                        amount = amount;
+                        fee = fee;
+                    }))
+
                 };
 
                 ignore do ? {
-                    let vid = get_destination_vector(tr.to);
-                    let v = Map.get<T.DVectorId, T.DVector>(dvectors, Map.n32hash, vid!);
+                    let vid = get_destination_vector(tr.to)!;
+                    let v = Map.get<T.DVectorId, T.DVector>(dvectors, Map.n32hash, vid)!;
+                    let fee = Nat64.toNat(tr.fee.e8s);
 
-                    v!.destination_balance += amount;
+                    v.destination_balance += amount;
+
+                    let vtx_id:?Nat64 = do ? { T.DNat64(Blob.toArray(t.transaction.icrc1_memo!))! };
+
+                    history.add([v], #destination_in({
+                        vtx_id;
+                        vid = vid;
+                        amount = amount;
+                        fee = fee;
+                    }))
+
                 };
 
                 ignore do ? {
-                    let vid = get_destination_vector(tr.from);
-                    let v = Map.get<T.DVectorId, T.DVector>(dvectors, Map.n32hash, vid!);
+                    let vid = get_destination_vector(tr.from)!;
+                    let v = Map.get<T.DVectorId, T.DVector>(dvectors, Map.n32hash, vid)!;
+                    let fee = Nat64.toNat(tr.fee.e8s);
 
-                    v!.destination_balance -= amount + v!.destination.ledger_fee;
+                    v.destination_balance -= amount + v.destination.ledger_fee;
+
+                    history.add([v], #destination_out({
+                        vid = vid;
+                        amount = amount;
+                        fee = fee;
+                    }))
                 };
 
             };
@@ -95,7 +132,7 @@ module {
         };
 
         private func proc() : async () {
-
+            if (mem.paused) return;
             // start from the end of last_indexed_tx = 0
             if (mem.last_indexed_tx == 0) {
                 let rez = await ledger.query_blocks({

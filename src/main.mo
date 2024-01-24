@@ -22,6 +22,8 @@ import Matching "./matching";
 import IndexerICRC "./indexers/icrc";
 import IndexerICP "./indexers/icp";
 import Sender "./sender";
+import History "./history";
+import Architect "./architect";
 
 actor class Swap() = this {
   type R<A, B> = Result.Result<A, B>;
@@ -49,6 +51,15 @@ actor class Swap() = this {
 
   stable let _dvectors = Map.new<DVectorId, DVector>();
   stable var _nextDVectorId : DVectorId = 0;
+  stable var _architects_mem : Architect.ArchMem = {
+    architects = Map.new<Principal, Vector.Vector<T.DVectorId>>();
+  };
+
+  stable let _history_mem = Vector.new<T.History.Tx>();
+
+  let _history = History.History({
+    mem = _history_mem
+  });
 
   let _errlog = Vector.new<Text>();
 
@@ -75,6 +86,7 @@ actor class Swap() = this {
     rates = _rates;
     dvectors = _dvectors;
     errlog = _errlog;
+    history = _history;
   });
 
   // ---
@@ -83,6 +95,7 @@ actor class Swap() = this {
     var last_indexed_tx = 0; // leave 0 to start from the last one
     source2vector = Map.new<Ledger.Account, DVectorId>();
     destination2vector = Map.new<Ledger.Account, DVectorId>();
+    var paused = false;
   };
 
   let _indexer_ckBTC = IndexerICRC.Indexer({
@@ -90,6 +103,7 @@ actor class Swap() = this {
     mem = _indexer_ckBTC_mem;
     dvectors = _dvectors;
     errlog = _errlog;
+    history = _history;
   });
 
   // ---
@@ -98,6 +112,7 @@ actor class Swap() = this {
     var last_indexed_tx = 0; // leave 0 to start from the last one
     source2vector = Map.new<Blob, DVectorId>();
     destination2vector = Map.new<Blob, DVectorId>();
+    var paused = false;
   };
 
   let _indexer_ICP = IndexerICP.Indexer({
@@ -105,6 +120,7 @@ actor class Swap() = this {
     mem = _indexer_ICP_mem;
     dvectors = _dvectors;
     errlog = _errlog;
+    history = _history;
   });
 
   // --- 
@@ -112,7 +128,16 @@ actor class Swap() = this {
   let _sender = Sender.Sender({
     errlog = _errlog;
     dvectors = _dvectors;
+    history = _history;
   });
+
+  // ---
+  let _architects = Architect.Architect({
+    mem = _architects_mem;
+    dvectors = _dvectors;
+    history_mem = _history_mem;
+  });
+
 
   ignore Timer.setTimer(#seconds 1, func () : async () {
     // Some timers were not starting when directly placed in classes
@@ -146,7 +171,7 @@ actor class Swap() = this {
     ]
   };
 
-  public shared ({ caller }) func create_dvector(req : DVectorRequest) : async R<DVectorId, Text> {
+  public shared ({ caller }) func create_vector(req : DVectorRequest) : async R<DVectorId, Text> {
 
     assert (caller == whitelisted);
 
@@ -195,7 +220,7 @@ actor class Swap() = this {
     };
 
     let dvector : DVector = {
-      owner = req.owner;
+      owner = caller;
       algorate = req.algorate;
       var active = false;
       var rate = 0;
@@ -206,24 +231,66 @@ actor class Swap() = this {
       var destination_balance = await destination_ledger.icrc1_balance_of(destination.address);
       destination;
       var unconfirmed_transactions = [];
+      history = Vector.new<T.History.TxId>();
     };
 
     Map.set(_dvectors, nhash, pid, dvector);
-
+    _architects.add_vector(caller, pid);
     _indexer_ICP.register_vector(pid, dvector);
     _indexer_ckBTC.register_vector(pid, dvector);
-    
+
     #ok pid;
   };
 
-  public query func get_dvector(pid : DVectorId) : async ?DVectorShared {
-    T.DVector.toShared(Map.get(_dvectors, nhash, pid));
+  public query func get_vector(pid : DVectorId) : async ?DVectorShared {
+    T.DVector.toShared(_history_mem, Map.get(_dvectors, nhash, pid));
   };
 
+  public query func get_architect_vectors({id: Principal; start:Nat; length:Nat}) : async Architect.ArchVectorsResult {
+    _architects.get_vectors(id, start, length);
+  };
+
+  public query func get_events({start:Nat; length:Nat}) : async R<T.History.HistoryResponse, Text> {
+    let total = Vector.size(_history_mem);
+    let real_len = Nat.min(length, if (start > length) 0 else total - start);
+
+    let entries = Array.tabulate<(T.History.TxId, T.History.Tx)>(real_len, func (i) {
+            let id = start + i;
+            let tx = Vector.get(_history_mem, id);
+            (id, tx);
+        });
+    #ok {
+      total;
+      entries;
+    }
+  };
+
+  public query func get_vector_events({id: T.DVectorId; start: Nat; length: Nat}) : async R<T.History.HistoryResponse, Text> {
+    let ?vector = Map.get(_dvectors, nhash, id) else return #err("vector not found");
+
+    let total = Vector.size(vector.history);
+
+    let real_len = Nat.min(length, if (start > length) 0 else total - start);
+
+    let entries = Array.tabulate<(T.History.TxId, T.History.Tx)>(real_len, func (i) {
+            let id = start + i;
+            let tx = Vector.get(_history_mem, id);
+            (id, tx);
+        });
+        
+    #ok {
+      total;
+      entries;
+    }
+  };
 
   public query func show_log() : async [Text] {
     Vector.toArray(_errlog);
   };
 
+  public func index_pause(paused: Bool) : async () {
+    _indexer_ckBTC_mem.paused := paused;
+    _indexer_ICP_mem.paused := paused;
+  }
   
 };

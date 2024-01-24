@@ -14,6 +14,7 @@ import Timer "mo:base/Timer";
 import Array "mo:base/Array";
 import Error "mo:base/Error";
 import Blob "mo:base/Blob";
+import History "./history";
 
 module {
 
@@ -29,6 +30,7 @@ module {
         errlog : Vector.Vector<Text>;
         rates : Rates.Rates;
         dvectors : Map.Map<K, V>;
+        history : History.History;
     }) {
 
         // Recalcualte rates
@@ -137,6 +139,7 @@ module {
             mem.last_tx_id += 1;
 
             let tx : T.UnconfirmedTransaction = {
+                id = tx_id;
                 amount = amountNat;
                 timestamp = T.now();
                 from_id = from_id;
@@ -151,7 +154,16 @@ module {
             from.amount_available -= amountNat;
             from.unconfirmed_transactions := Array.append(from.unconfirmed_transactions, [tx]);
             // Vector.add(from.unconfirmed_transactions, tx);
-
+            
+            history.add([from, to], #tx_initiated({
+                        vtx_id = tx_id;
+                        from = from_id;
+                        to = to_id;
+                        amount = amountNat;
+                        fee = from.source.ledger_fee;
+                        rate = from.rate;
+                    }));
+            
         };
 
         public func start_timer() {

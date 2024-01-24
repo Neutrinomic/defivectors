@@ -55,8 +55,6 @@ module {
     };
 
     public type DVectorRequest = {
-        owner : Principal;
-
         source : SourceEndpointInput;
 
         destination : DestinationEndpointInput;
@@ -79,6 +77,7 @@ module {
         var rate : Float;
         var active : Bool;
         var unconfirmed_transactions : [UnconfirmedTransaction];
+        history : Vector.Vector<History.TxId>;
     };
 
     public func sumAmountInTransfers(v: DVector) : Nat {
@@ -90,6 +89,7 @@ module {
     };
 
     public type UnconfirmedTransaction = {
+        id : Nat64;
         amount : Nat;
         timestamp : Timestamp;
         to :Ledger.Account;
@@ -127,8 +127,10 @@ module {
         unconfirmed_transactions : [UnconfirmedTransactionShared];
     };
 
+
+
     public module DVector {
-        public func toShared(tr: ?DVector) : ?DVectorShared {
+        public func toShared(history: Vector.Vector<History.Tx>, tr: ?DVector) : ?DVectorShared {
             let ?t = tr else return null;
             ?{
                 t with
@@ -139,6 +141,66 @@ module {
                 amount_available = t.amount_available;
                 destination_balance = t.destination_balance;
             }
+        }
+    };
+
+    public module History {
+        public type TxId = Nat;
+        public type Tx = {
+            kind : TxKind;
+            timestamp : Timestamp;
+        };
+        public type TxKind = {
+            #source_in : {
+                vid : DVectorId;
+                amount : Nat;
+                fee : Nat;
+            };
+            #destination_in : {
+                vid : DVectorId;
+                amount : Nat;
+                fee : Nat;
+                vtx_id : ?Nat64;
+            };
+            #source_out : {
+                vid : DVectorId;
+                amount : Nat;
+                fee : Nat;
+            };
+            #destination_out : {
+                vid : DVectorId;
+                amount : Nat;
+                fee : Nat;
+            };
+            #tx_initiated : {
+                vtx_id : Nat64;
+                from : DVectorId;
+                to : DVectorId;
+                amount : Nat;
+                fee : Nat;
+                rate : Float;
+            };
+            #tx_sent : {
+                vtx_id : Nat64;
+                retry : Nat;
+                error : Bool;
+            };
+        };
+
+
+
+        public func getVectorHistory(history: Vector.Vector<History.Tx>, vec_history: Vector.Vector<TxId>, start:Nat, len:Nat) : [(History.TxId, History.Tx)] {
+            
+            Array.tabulate<(History.TxId, History.Tx)>(len, func (i) {
+                let id = Vector.get(vec_history, start + i);
+                let tx = Vector.get(history, id);
+                (id, tx);
+            });
+        };
+
+        public type HistoryResponse = {
+            total: Nat;
+            entries: [(TxId, Tx)];
         }
     };
 
@@ -188,6 +250,11 @@ module {
             Nat8.fromNat(Nat64.toNat((value >> 8) & 255)),
             Nat8.fromNat(Nat64.toNat(value & 255)),
         ];
+    };
+
+    public func DNat64(array : [Nat8]) : ?Nat64 {
+        if (array.size() != 8) return null;
+        return ?(Nat64.fromNat(Nat8.toNat(array[0])) << 56 | Nat64.fromNat(Nat8.toNat(array[1])) << 48 | Nat64.fromNat(Nat8.toNat(array[2])) << 40 | Nat64.fromNat(Nat8.toNat(array[3])) << 32 | Nat64.fromNat(Nat8.toNat(array[4])) << 24 | Nat64.fromNat(Nat8.toNat(array[5])) << 16 | Nat64.fromNat(Nat8.toNat(array[6])) << 8 | Nat64.fromNat(Nat8.toNat(array[7])));
     };
 
     private func ENat32(value : Nat32) : [Nat8] {
