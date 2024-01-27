@@ -1,13 +1,19 @@
+type VLocation = 
+ variant {
+   destination;
+   source;
+ };
 type UnconfirmedTransactionShared = 
  record {
    amount: nat;
    fee: nat;
    from: Account;
    from_id: DVectorId;
+   ledger: principal;
    memo: blob;
    timestamp: Timestamp;
    to: Account;
-   to_id: DVectorId;
+   to_id: opt DVectorId;
    tries: nat;
  };
 type TxKind = 
@@ -34,7 +40,7 @@ type TxKind =
                  fee: nat;
                  vid: DVectorId;
                };
-   tx_initiated:
+   swap:
     record {
       amount: nat;
       fee: nat;
@@ -44,9 +50,19 @@ type TxKind =
       vtx_id: nat64;
     };
    tx_sent: record {
+              error: bool;
               retry: nat;
               vtx_id: nat64;
             };
+   withdraw:
+    record {
+      amount: nat;
+      fee: nat;
+      from: DVectorId;
+      location: VLocation;
+      to: Account;
+      vtx_id: nat64;
+    };
  };
 type TxId = nat;
 type Tx = 
@@ -57,30 +73,48 @@ type Tx =
 type Timestamp = nat32;
 type Swap = 
  service {
-   create_dvector: (DVectorRequest) -> (R_1);
-   get_dvector: (DVectorId__1) -> (opt DVectorShared) query;
-   get_dvector_events: (record {
-                          id: DVectorId;
-                          length: nat;
-                          start: nat;
-                        }) -> (R) query;
+   create_vector: (DVectorRequest) -> (R_2);
+   get_architect_vectors: (record {
+                             id: principal;
+                             length: nat;
+                             start: nat;
+                           }) -> (ArchVectorsResult) query;
    get_events: (record {
                   length: nat;
                   start: nat;
-                }) -> (R) query;
+                }) -> (R_1) query;
+   get_vector: (DVectorId__1) -> (opt DVectorShared) query;
+   get_vector_events: (record {
+                         id: DVectorId;
+                         length: nat;
+                         start: nat;
+                       }) -> (R_1) query;
+   index_pause: (bool) -> ();
    show_log: () -> (vec text) query;
    stats: () -> (vec nat) query;
+   withdraw_vector:
+    (record {
+       amount: nat;
+       id: DVectorId;
+       location: VLocation;
+       to: Account;
+     }) -> (R);
  };
 type SourceEndpointInput = record {ledger: principal;};
-type R_1 = 
+type R_2 = 
  variant {
    err: text;
    ok: DVectorId__1;
  };
-type R = 
+type R_1 = 
  variant {
    err: text;
    ok: HistoryResponse;
+ };
+type R = 
+ variant {
+   err: text;
+   ok: nat64;
  };
 type HistoryResponse = 
  record {
@@ -103,34 +137,71 @@ type DestinationEndpointInput =
    address: opt Account;
    ledger: principal;
  };
-type DVectorShared = 
+type DVectorShared__1 = 
  record {
    active: bool;
-   algorate: AlgoRate;
-   amount_available: nat;
+   algo: Algo;
    created: Timestamp;
    destination: Endpoint;
    destination_balance: nat;
+   destination_rate_usd: float64;
    owner: principal;
    rate: float64;
    source: Endpoint;
    source_balance: nat;
+   source_balance_available: nat;
+   source_balance_tradable: nat;
+   source_balance_tradable_last_update: Timestamp;
+   source_rate_usd: float64;
+   total_events: nat;
+   unconfirmed_transactions: vec UnconfirmedTransactionShared;
+ };
+type DVectorShared = 
+ record {
+   active: bool;
+   algo: Algo;
+   created: Timestamp;
+   destination: Endpoint;
+   destination_balance: nat;
+   destination_rate_usd: float64;
+   owner: principal;
+   rate: float64;
+   source: Endpoint;
+   source_balance: nat;
+   source_balance_available: nat;
+   source_balance_tradable: nat;
+   source_balance_tradable_last_update: Timestamp;
+   source_rate_usd: float64;
+   total_events: nat;
    unconfirmed_transactions: vec UnconfirmedTransactionShared;
  };
 type DVectorRequest = 
  record {
-   algorate: AlgoRate;
+   algo: Algo;
    destination: DestinationEndpointInput;
-   owner: principal;
    source: SourceEndpointInput;
  };
 type DVectorId__1 = nat32;
 type DVectorId = nat32;
-type AlgoRate = 
+type ArchVectorsResult = 
  record {
-   discount: float64;
-   max: float64;
+   entries: vec record {
+                  DVectorId;
+                  DVectorShared__1;
+                };
+   total: nat;
  };
+type Algo = variant {
+              v1:
+               record {
+                 interval_release_usd: float64;
+                 interval_seconds: nat32;
+                 max: float64;
+                 max_tradable_usd: float64;
+                 multiplier: float64;
+                 multiplier_wiggle: float64;
+                 multiplier_wiggle_seconds: float64;
+               };};
 type Account = 
  record {
    owner: principal;

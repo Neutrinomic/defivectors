@@ -115,6 +115,13 @@ module {
                     let fee = Nat64.toNat(tr.fee.e8s);
 
                     v.destination_balance -= amount + v.destination.ledger_fee;
+                    
+                    v.unconfirmed_transactions := Array.filter<T.UnconfirmedTransaction>(
+                        v.unconfirmed_transactions,
+                        func(ut) : Bool {
+                            t.transaction.icrc1_memo != ?ut.memo;
+                        },
+                    );
 
                     history.add([v], #destination_out({
                         vid = vid;

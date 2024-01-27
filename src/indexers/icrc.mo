@@ -130,6 +130,13 @@ module {
 
                     v.destination_balance -= tr.amount + v.destination.ledger_fee;
 
+                    v.unconfirmed_transactions := Array.filter<T.UnconfirmedTransaction>(
+                        v.unconfirmed_transactions,
+                        func(ut) : Bool {
+                            tr.memo != ?ut.memo;
+                        },
+                    );
+
                     history.add([v], #destination_out({
                         vid = vid;
                         amount = tr.amount;

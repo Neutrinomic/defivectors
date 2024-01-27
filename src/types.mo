@@ -21,19 +21,12 @@ module {
 
     public type TokenId = Nat16;
 
-    public type SwapRequest = {
-        id : DVectorId;
-        amount : Nat;
-    };
-
-    public type SwapResult = {
-        recievedSource: Nat;
-        sentDestination: Nat;
-        returnedDestination: Nat;
-    };
-
     public type SourceEndpointInput = {
         ledger : Principal;
+    };
+    public type VLocation = {
+        #source;
+        #destination;
     };
 
     public type DestinationEndpointInput = {
@@ -43,15 +36,22 @@ module {
 
     public type Endpoint = {
         address : Ledger.Account;
-        ledger_decimals: Nat;
-        ledger_fee: Nat; 
+        ledger_decimals : Nat;
+        ledger_fee : Nat;
         ledger_symbol : Text;
         ledger : Principal;
     };
 
-    public type AlgoRate = {
-        max : Float;
-        discount: Float;
+    public type Algo = {
+        #v1 : {
+            max : Float;
+            multiplier : Float;
+            multiplier_wiggle : Float;
+            multiplier_wiggle_seconds : Float;
+            interval_seconds: Nat32;
+            interval_release_usd: Float;
+            max_tradable_usd: Float;
+        };
     };
 
     public type DVectorRequest = {
@@ -60,28 +60,30 @@ module {
         destination : DestinationEndpointInput;
 
         // Rate - serves to calculate the amount taker has to give
-        algorate: AlgoRate;
+        algo : Algo;
     };
-
-
 
     public type DVector = {
         owner : Principal;
         created : Timestamp;
         source : Endpoint;
         var source_balance : Nat;
-        var amount_available : Nat;
+        var source_balance_available : Nat;
+        var source_balance_tradable : Nat;
+        var source_balance_tradable_last_update : Timestamp;
+        var source_rate_usd : Float;
+        var destination_rate_usd : Float;
         destination : Endpoint;
         var destination_balance : Nat;
-        algorate: AlgoRate;
+        algo : Algo;
         var rate : Float;
         var active : Bool;
         var unconfirmed_transactions : [UnconfirmedTransaction];
         history : Vector.Vector<History.TxId>;
     };
 
-    public func sumAmountInTransfers(v: DVector) : Nat {
-        var sum:Nat = 0;
+    public func sumAmountInTransfers(v : DVector) : Nat {
+        var sum : Nat = 0;
         for (v in v.unconfirmed_transactions.vals()) {
             sum := sum + v.amount;
         };
@@ -92,11 +94,12 @@ module {
         id : Nat64;
         amount : Nat;
         timestamp : Timestamp;
-        to :Ledger.Account;
+        to : Ledger.Account;
         from : Ledger.Account;
         fee : Nat;
         from_id : DVectorId;
-        to_id : DVectorId;
+        to_id : ?DVectorId;
+        ledger : Principal;
         memo : Blob;
         var tries : Nat;
     };
@@ -104,11 +107,12 @@ module {
     public type UnconfirmedTransactionShared = {
         amount : Nat;
         timestamp : Timestamp;
-        to :Ledger.Account;
+        to : Ledger.Account;
         from : Ledger.Account;
         fee : Nat;
         from_id : DVectorId;
-        to_id : DVectorId;
+        to_id : ?DVectorId;
+        ledger : Principal;
         memo : Blob;
         tries : Nat;
     };
@@ -118,19 +122,22 @@ module {
         created : Timestamp;
         source : Endpoint;
         source_balance : Nat;
-        amount_available : Nat;
+        source_balance_available : Nat;
+        source_balance_tradable : Nat;
+        source_balance_tradable_last_update : Timestamp;
         destination : Endpoint;
         destination_balance : Nat;
-        algorate: AlgoRate;
-        rate: Float;
+        source_rate_usd : Float;
+        destination_rate_usd : Float;
+        algo : Algo;
+        rate : Float;
         active : Bool;
         unconfirmed_transactions : [UnconfirmedTransactionShared];
+        total_events : Nat;
     };
 
-
-
     public module DVector {
-        public func toShared(history: Vector.Vector<History.Tx>, tr: ?DVector) : ?DVectorShared {
+        public func toShared(history : Vector.Vector<History.Tx>, tr : ?DVector) : ?DVectorShared {
             let ?t = tr else return null;
             ?{
                 t with
@@ -138,10 +145,15 @@ module {
                 rate = t.rate;
                 active = t.active;
                 unconfirmed_transactions = Array.map<UnconfirmedTransaction, UnconfirmedTransactionShared>(t.unconfirmed_transactions, UnconfirmedTransaction.toShared);
-                amount_available = t.amount_available;
+                source_balance_available = t.source_balance_available;
+                source_balance_tradable = t.source_balance_tradable;
+                source_balance_tradable_last_update = t.source_balance_tradable_last_update;
                 destination_balance = t.destination_balance;
-            }
-        }
+                source_rate_usd = t.source_rate_usd;
+                destination_rate_usd = t.destination_rate_usd;
+                total_events = Vector.size(t.history);
+            };
+        };
     };
 
     public module History {
@@ -172,13 +184,21 @@ module {
                 amount : Nat;
                 fee : Nat;
             };
-            #tx_initiated : {
+            #swap : {
                 vtx_id : Nat64;
                 from : DVectorId;
                 to : DVectorId;
                 amount : Nat;
                 fee : Nat;
                 rate : Float;
+            };
+            #withdraw : {
+                vtx_id : Nat64;
+                from : DVectorId;
+                to : Ledger.Account;
+                location : VLocation;
+                amount : Nat;
+                fee : Nat;
             };
             #tx_sent : {
                 vtx_id : Nat64;
@@ -187,30 +207,31 @@ module {
             };
         };
 
+        public func getVectorHistory(history : Vector.Vector<History.Tx>, vec_history : Vector.Vector<TxId>, start : Nat, len : Nat) : [(History.TxId, History.Tx)] {
 
-
-        public func getVectorHistory(history: Vector.Vector<History.Tx>, vec_history: Vector.Vector<TxId>, start:Nat, len:Nat) : [(History.TxId, History.Tx)] {
-            
-            Array.tabulate<(History.TxId, History.Tx)>(len, func (i) {
-                let id = Vector.get(vec_history, start + i);
-                let tx = Vector.get(history, id);
-                (id, tx);
-            });
+            Array.tabulate<(History.TxId, History.Tx)>(
+                len,
+                func(i) {
+                    let id = Vector.get(vec_history, start + i);
+                    let tx = Vector.get(history, id);
+                    (id, tx);
+                },
+            );
         };
 
         public type HistoryResponse = {
-            total: Nat;
-            entries: [(TxId, Tx)];
-        }
+            total : Nat;
+            entries : [(TxId, Tx)];
+        };
     };
 
     public module UnconfirmedTransaction {
-        public func toShared(t: UnconfirmedTransaction) : UnconfirmedTransactionShared {
+        public func toShared(t : UnconfirmedTransaction) : UnconfirmedTransactionShared {
             {
                 t with
                 tries = t.tries;
-            }
-        }
+            };
+        };
     };
 
     public func now() : Timestamp {
@@ -232,9 +253,9 @@ module {
 
         var pos = 1;
         for (x in pa.vals()) {
-                a[pos] := x;
-                pos := pos + 1;
-            };
+            a[pos] := x;
+            pos := pos + 1;
+        };
 
         Blob.fromArray(Array.freeze(a));
     };
@@ -266,19 +287,19 @@ module {
         ];
     };
 
-    public func getFloatRate(amount1: Nat, decimals1: Nat, amount2:Nat, decimals2:Nat) : Float {
-        let r0 = floatAmount(amount1, decimals1); 
-        let r1 = floatAmount(amount2, decimals2); 
-        
+    public func getFloatRate(amount1 : Nat, decimals1 : Nat, amount2 : Nat, decimals2 : Nat) : Float {
+        let r0 = floatAmount(amount1, decimals1);
+        let r1 = floatAmount(amount2, decimals2);
+
         (r1 / r0);
     };
 
-    public func floatAmount(amount: Nat, decimals:Nat) : Float {
-        Float.fromInt(amount)/ (10 ** Float.fromInt(decimals)); 
+    public func floatAmount(amount : Nat, decimals : Nat) : Float {
+        Float.fromInt(amount) / (10 ** Float.fromInt(decimals));
     };
 
-    public func natAmount(amount: Float, decimals:Nat) : Nat {
-        Int.abs(Float.toInt(amount * (10 ** Float.fromInt(decimals)))); 
+    public func natAmount(amount : Float, decimals : Nat) : Nat {
+        Int.abs(Float.toInt(amount * (10 ** Float.fromInt(decimals))));
     };
 
     public type LedgerMeta = {
@@ -287,17 +308,16 @@ module {
         fee : Nat;
     };
 
-    public func ledgerMeta( ledger_id : Principal ) : async LedgerMeta {
+    public func ledgerMeta(ledger_id : Principal) : async LedgerMeta {
         let ledger = actor (Principal.toText(ledger_id)) : Ledger.Self;
         let meta = await ledger.icrc1_metadata();
 
-        let ?#Text(symbol) = findLedgerMetaVal("icrc1:symbol", meta) else Debug.trap("Can't find ledger symbol");
-        let ?#Nat(fee) = findLedgerMetaVal("icrc1:fee", meta) else Debug.trap("Can't find ledger fee");
-        let ?#Nat(decimals) = findLedgerMetaVal("icrc1:decimals", meta) else Debug.trap("Can't find ledger decimals");
+        let ? #Text(symbol) = findLedgerMetaVal("icrc1:symbol", meta) else Debug.trap("Can't find ledger symbol");
+        let ? #Nat(fee) = findLedgerMetaVal("icrc1:fee", meta) else Debug.trap("Can't find ledger fee");
+        let ? #Nat(decimals) = findLedgerMetaVal("icrc1:decimals", meta) else Debug.trap("Can't find ledger decimals");
 
-        {symbol; decimals; fee};
+        { symbol; decimals; fee };
     };
-
 
     private func findLedgerMetaVal(key : Text, values : [(Text, Ledger.MetadataValue)]) : ?Ledger.MetadataValue {
         let ?f = Array.find<(Text, Ledger.MetadataValue)>(values, func((k : Text, d : Ledger.MetadataValue)) = k == key) else return null;

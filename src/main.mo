@@ -35,8 +35,6 @@ actor class Swap() = this {
   type DVectorRequest = T.DVectorRequest;
   type DVector = T.DVector;
   type DVectorShared = T.DVectorShared;
-  type SwapRequest = T.SwapRequest;
-  type SwapResult = T.SwapResult;
 
   let nhash = Map.n32hash;
   let NTN_ledger = actor ("f54if-eqaaa-aaaaq-aacea-cai") : Ledger.Self;
@@ -47,37 +45,37 @@ actor class Swap() = this {
   //   subaccount = ?"\61\47\4b\07\1a\86\0b\27\95\75\c9\54\ce\5f\35\98\f4\f8\63\f8\c6\f4\50\86\0c\d3\c3\11\43\16\ef\2d" : ?Blob;
   // };
 
-  let whitelisted = Principal.fromText("lovjp-a2s3z-lqgmk-epyel-hshnr-ksdzf-abimc-f7dpu-33z4u-2vbkf-uae");
+  // let whitelisted = Principal.fromText("lovjp-a2s3z-lqgmk-epyel-hshnr-ksdzf-abimc-f7dpu-33z4u-2vbkf-uae");
 
   stable let _dvectors = Map.new<DVectorId, DVector>();
   stable var _nextDVectorId : DVectorId = 0;
-  stable var _architects_mem : Architect.ArchMem = {
+  stable let _architects_mem : Architect.ArchMem = {
     architects = Map.new<Principal, Vector.Vector<T.DVectorId>>();
   };
 
   stable let _history_mem = Vector.new<T.History.Tx>();
 
   let _history = History.History({
-    mem = _history_mem
+    mem = _history_mem;
   });
 
   let _errlog = Vector.new<Text>();
 
   let _ledgermeta = LedgerMeta.LedgerMeta({
-    ledgers = [ICP_ledger, BTC_ledger]
+    ledgers = [ICP_ledger, BTC_ledger];
   });
-  
+
   let _rates = Rates.Rates({
     whitelisted = [
       // id in defiaggregator config, ledger
-      (1, ICP_ledger), // ICP
-      (3, BTC_ledger) // BTC
-    ]
+      (3, ICP_ledger), // ICP
+      (1, BTC_ledger) // BTC
+    ];
   });
 
   // ---
 
-  let _matching_mem : Matching.MatchingMem = {
+  stable let _matching_mem : Matching.MatchingMem = {
     var last_tx_id = 0;
   };
 
@@ -91,7 +89,7 @@ actor class Swap() = this {
 
   // ---
 
-  let _indexer_ckBTC_mem : IndexerICRC.Mem = {
+  stable let _indexer_ckBTC_mem : IndexerICRC.Mem = {
     var last_indexed_tx = 0; // leave 0 to start from the last one
     source2vector = Map.new<Ledger.Account, DVectorId>();
     destination2vector = Map.new<Ledger.Account, DVectorId>();
@@ -108,7 +106,7 @@ actor class Swap() = this {
 
   // ---
 
-  let _indexer_ICP_mem : IndexerICP.Mem = {
+  stable let _indexer_ICP_mem : IndexerICP.Mem = {
     var last_indexed_tx = 0; // leave 0 to start from the last one
     source2vector = Map.new<Blob, DVectorId>();
     destination2vector = Map.new<Blob, DVectorId>();
@@ -123,7 +121,7 @@ actor class Swap() = this {
     history = _history;
   });
 
-  // --- 
+  // ---
 
   let _sender = Sender.Sender({
     errlog = _errlog;
@@ -138,23 +136,27 @@ actor class Swap() = this {
     history_mem = _history_mem;
   });
 
+  ignore Timer.setTimer(
+    #seconds 1,
+    func() : async () {
+      // Some timers were not starting when directly placed in classes
 
-  ignore Timer.setTimer(#seconds 1, func () : async () {
-    // Some timers were not starting when directly placed in classes
-  
-    _sender.start_timer();
-    _indexer_ckBTC.start_timer();
-    _indexer_ICP.start_timer();
-  });
+      _sender.start_timer();
+      _indexer_ckBTC.start_timer();
+      _indexer_ICP.start_timer();
+    },
+  );
 
-  ignore Timer.setTimer(#seconds 1, func () : async () {
-    // Some timers were not starting when directly placed in classes
-    _ledgermeta.start_timer();
-    _rates.start_timer();
-    _matching.start_timer();
+  ignore Timer.setTimer(
+    #seconds 1,
+    func() : async () {
+      // Some timers were not starting when directly placed in classes
+      _ledgermeta.start_timer();
+      _rates.start_timer();
+      _matching.start_timer();
 
-  });
-
+    },
+  );
 
   // Transfer NTN from account using icrc2, trap on error
   // private func require_ntn_transfer(from : Principal, amount : Nat, reciever : Ledger.Account) : async () {
@@ -167,13 +169,11 @@ actor class Swap() = this {
   public query func stats() : async [Nat] {
     [
       _indexer_ICP_mem.last_indexed_tx,
-      _indexer_ckBTC_mem.last_indexed_tx
-    ]
+      _indexer_ckBTC_mem.last_indexed_tx,
+    ];
   };
 
   public shared ({ caller }) func create_vector(req : DVectorRequest) : async R<DVectorId, Text> {
-
-    assert (caller == whitelisted);
 
     // await require_ntn_transfer(
     //   caller,
@@ -183,7 +183,6 @@ actor class Swap() = this {
     //     subaccount = ?T.getPrincipalSubaccount(caller);
     //   },
     // );
-
 
     let ?source_ledger_meta = _ledgermeta.get(req.source.ledger) else return #err("source ledger meta not found");
     let ?destination_ledger_meta = _ledgermeta.get(req.destination.ledger) else return #err("destination ledger meta not found");
@@ -221,14 +220,18 @@ actor class Swap() = this {
 
     let dvector : DVector = {
       owner = caller;
-      algorate = req.algorate;
+      algo = req.algo;
       var active = false;
       var rate = 0;
       created = T.now();
       source;
       var source_balance = await source_ledger.icrc1_balance_of(source.address);
-      var amount_available = 0;
+      var source_balance_available = 0;
+      var source_balance_tradable = 0;
+      var source_balance_tradable_last_update = T.now();
       var destination_balance = await destination_ledger.icrc1_balance_of(destination.address);
+      var source_rate_usd = 0;
+      var destination_rate_usd = 0;
       destination;
       var unconfirmed_transactions = [];
       history = Vector.new<T.History.TxId>();
@@ -246,51 +249,99 @@ actor class Swap() = this {
     T.DVector.toShared(_history_mem, Map.get(_dvectors, nhash, pid));
   };
 
-  public query func get_architect_vectors({id: Principal; start:Nat; length:Nat}) : async Architect.ArchVectorsResult {
+  public query func get_architect_vectors({
+    id : Principal;
+    start : Nat;
+    length : Nat;
+  }) : async Architect.ArchVectorsResult {
     _architects.get_vectors(id, start, length);
   };
 
-  public query func get_events({start:Nat; length:Nat}) : async R<T.History.HistoryResponse, Text> {
+  public query func get_events({ start : Nat; length : Nat }) : async R<T.History.HistoryResponse, Text> {
     let total = Vector.size(_history_mem);
     let real_len = Nat.min(length, if (start > length) 0 else total - start);
 
-    let entries = Array.tabulate<(T.History.TxId, T.History.Tx)>(real_len, func (i) {
-            let id = start + i;
-            let tx = Vector.get(_history_mem, id);
-            (id, tx);
-        });
+    let entries = Array.tabulate<(T.History.TxId, T.History.Tx)>(
+      real_len,
+      func(i) {
+        let id = start + i;
+        let tx = Vector.get(_history_mem, id);
+        (id, tx);
+      },
+    );
     #ok {
       total;
       entries;
-    }
+    };
   };
 
-  public query func get_vector_events({id: T.DVectorId; start: Nat; length: Nat}) : async R<T.History.HistoryResponse, Text> {
+  public query func get_vector_events({
+    id : T.DVectorId;
+    start : Nat;
+    length : Nat;
+  }) : async R<T.History.HistoryResponse, Text> {
     let ?vector = Map.get(_dvectors, nhash, id) else return #err("vector not found");
 
     let total = Vector.size(vector.history);
 
     let real_len = Nat.min(length, if (start > length) 0 else total - start);
 
-    let entries = Array.tabulate<(T.History.TxId, T.History.Tx)>(real_len, func (i) {
-            let id = start + i;
-            let tx = Vector.get(_history_mem, id);
-            (id, tx);
-        });
-        
+    let entries = Array.tabulate<(T.History.TxId, T.History.Tx)>(
+      real_len,
+      func(i) {
+        let lid = start + i;
+        let id = Vector.get(vector.history, lid);
+        let tx = Vector.get(_history_mem, id);
+        (id, tx);
+      },
+    );
+
     #ok {
       total;
       entries;
-    }
+    };
+  };
+
+  public shared ({ caller }) func withdraw_vector({
+    id : T.DVectorId;
+    to : Ledger.Account;
+    amount : Nat;
+    location : T.VLocation;
+  }) : async R<Nat64, Text> {
+
+    let ?vector = Map.get(_dvectors, nhash, id) else return #err("vector not found");
+    if (caller != vector.owner) return #err("caller is not the owner");
+    switch (location) {
+      case (#source) {
+          if (amount <= vector.source.ledger_fee * 10) return #err("amount is too low");
+          if (vector.source_balance_available < amount) return #err("not enough funds");
+      };
+      case (#destination) {
+          // Check if the destination is the destination of this vector
+          // if not - it could be the source of another vector
+          // in which case we have to deny the withdraw
+          let vector_destination = {
+            owner = Principal.fromActor(this);
+            subaccount = ?T.getDVectorSubaccount(id, #destination);
+          } : Ledger.Account;
+
+          if (vector_destination != vector.destination.address) return #err("destination is the source of another vector or remote");
+          if (amount <= vector.destination.ledger_fee * 10) return #err("amount is too low");
+          if (vector.destination_balance < amount) return #err("not enough funds");
+      };
+    };
+
+    #ok(_matching.make_withdraw_transaction(id, vector, amount, to, location));
+
   };
 
   public query func show_log() : async [Text] {
     Vector.toArray(_errlog);
   };
 
-  public func index_pause(paused: Bool) : async () {
+  public func index_pause(paused : Bool) : async () {
     _indexer_ckBTC_mem.paused := paused;
     _indexer_ICP_mem.paused := paused;
-  }
-  
+  };
+
 };
