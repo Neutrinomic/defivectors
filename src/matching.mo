@@ -40,7 +40,9 @@ module {
         public func prepare_vectors() {
             let now = T.now();
             label preparation for ((k, v) in Map.entries(dvectors)) {
-                v.source_balance_available := v.source_balance - T.sumAmountInTransfers(v); // TODO: add time based availability throttle
+                v.source_balance_available := v.source_balance - T.sumAmountInTransfers(v, v.source.ledger);
+                v.destination_balance_available := v.destination_balance - T.sumAmountInTransfers(v, v.destination.ledger);
+                
                 let ?rate_source = rates.get_rate(v.source.ledger) else continue preparation;
                 let ?rate_destination = rates.get_rate(v.destination.ledger) else continue preparation;
                 v.source_rate_usd := rate_source;
@@ -184,11 +186,13 @@ module {
                     };
                 };
                 case (#destination) {
+                    let amount = Nat.min(amountInc, from.destination_balance_available);
+                    from.destination_balance_available -= amount;
                     {
                         from_addr = from.destination.address;
                         fee = from.destination.ledger_fee;
                         ledger = from.destination.ledger;
-                        amount = Nat.min(amountInc, from.destination_balance);
+                        amount;
                     };
                     
                 };

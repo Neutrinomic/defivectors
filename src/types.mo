@@ -75,6 +75,7 @@ module {
         var destination_rate_usd : Float;
         destination : Endpoint;
         var destination_balance : Nat;
+        var destination_balance_available : Nat;
         algo : Algo;
         var rate : Float;
         var active : Bool;
@@ -82,10 +83,10 @@ module {
         history : Vector.Vector<History.TxId>;
     };
 
-    public func sumAmountInTransfers(v : DVector) : Nat {
+    public func sumAmountInTransfers(v : DVector, ledger:Principal) : Nat {
         var sum : Nat = 0;
         for (v in v.unconfirmed_transactions.vals()) {
-            sum := sum + v.amount;
+            if (v.ledger == ledger) sum := sum + v.amount;
         };
         sum;
     };
@@ -127,6 +128,7 @@ module {
         source_balance_tradable_last_update : Timestamp;
         destination : Endpoint;
         destination_balance : Nat;
+        destination_balance_available : Nat;
         source_rate_usd : Float;
         destination_rate_usd : Float;
         algo : Algo;
@@ -149,6 +151,7 @@ module {
                 source_balance_tradable = t.source_balance_tradable;
                 source_balance_tradable_last_update = t.source_balance_tradable_last_update;
                 destination_balance = t.destination_balance;
+                destination_balance_available = t.destination_balance_available;
                 source_rate_usd = t.source_rate_usd;
                 destination_rate_usd = t.destination_rate_usd;
                 total_events = Vector.size(t.history);

@@ -32,7 +32,7 @@ module {
         public func get_vectors(arch_id: Principal, start:Nat, length: Nat) : ArchVectorsResult {
             let ?ids = Map.get(mem.architects, Map.phash, arch_id) else return {total=0; entries=[]};
             let total = Vector.size(ids);
-            let real_len = Nat.min(length, if (start > length) 0 else total - start);
+            let real_len = Nat.min(length, if (start > total) 0 else total - start);
             
             let entries = Array.tabulate<(T.DVectorId, T.DVectorShared)>(real_len, func (i) {
                 let local_id = start + i;

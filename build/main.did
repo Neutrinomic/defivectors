@@ -144,6 +144,7 @@ type DVectorShared__1 =
    created: Timestamp;
    destination: Endpoint;
    destination_balance: nat;
+   destination_balance_available: nat;
    destination_rate_usd: float64;
    owner: principal;
    rate: float64;
@@ -163,6 +164,7 @@ type DVectorShared =
    created: Timestamp;
    destination: Endpoint;
    destination_balance: nat;
+   destination_balance_available: nat;
    destination_rate_usd: float64;
    owner: principal;
    rate: float64;

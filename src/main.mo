@@ -232,6 +232,7 @@ actor class Swap() = this {
       var destination_balance = await destination_ledger.icrc1_balance_of(destination.address);
       var source_rate_usd = 0;
       var destination_rate_usd = 0;
+      var destination_balance_available = 0;
       destination;
       var unconfirmed_transactions = [];
       history = Vector.new<T.History.TxId>();
@@ -259,7 +260,7 @@ actor class Swap() = this {
 
   public query func get_events({ start : Nat; length : Nat }) : async R<T.History.HistoryResponse, Text> {
     let total = Vector.size(_history_mem);
-    let real_len = Nat.min(length, if (start > length) 0 else total - start);
+    let real_len = Nat.min(length, if (start > total) 0 else total - start);
 
     let entries = Array.tabulate<(T.History.TxId, T.History.Tx)>(
       real_len,
@@ -284,7 +285,7 @@ actor class Swap() = this {
 
     let total = Vector.size(vector.history);
 
-    let real_len = Nat.min(length, if (start > length) 0 else total - start);
+    let real_len = Nat.min(length, if (start >= total) 0 else total - start); 
 
     let entries = Array.tabulate<(T.History.TxId, T.History.Tx)>(
       real_len,
@@ -327,7 +328,7 @@ actor class Swap() = this {
 
           if (vector_destination != vector.destination.address) return #err("destination is the source of another vector or remote");
           if (amount <= vector.destination.ledger_fee * 10) return #err("amount is too low");
-          if (vector.destination_balance < amount) return #err("not enough funds");
+          if (vector.destination_balance_available < amount) return #err("not enough funds");
       };
     };
 
