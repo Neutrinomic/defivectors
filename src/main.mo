@@ -315,7 +315,6 @@ actor class Swap() = this {
     switch (location) {
       case (#source) {
           if (amount <= vector.source.ledger_fee * 10) return #err("amount is too low");
-          if (vector.source_balance_available < amount) return #err("not enough funds");
       };
       case (#destination) {
           // Check if the destination is the destination of this vector
@@ -328,7 +327,6 @@ actor class Swap() = this {
 
           if (vector_destination != vector.destination.address) return #err("destination is the source of another vector or remote");
           if (amount <= vector.destination.ledger_fee * 10) return #err("amount is too low");
-          if (vector.destination_balance_available < amount) return #err("not enough funds");
       };
     };
 
