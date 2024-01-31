@@ -17,6 +17,7 @@ import Blob "mo:base/Blob";
 import History "./history";
 import Nat32 "mo:base/Nat32";
 import Int "mo:base/Int";
+import Monitor "./monitor";
 
 module {
 
@@ -33,40 +34,45 @@ module {
         rates : Rates.Rates;
         dvectors : Map.Map<K, V>;
         history : History.History;
+        monitor : Monitor.Monitor;
+        ledger_left : Principal;
+        ledger_right : Principal;
     }) {
 
         // Recalcualte rates
         // Find out what's tradable and what not
         public func prepare_vectors() {
-            let now = T.now();
-            label preparation for ((k, v) in Map.entries(dvectors)) {
-                v.source_balance_available := v.source_balance - T.sumAmountInTransfers(v, v.source.ledger);
-                v.destination_balance_available := v.destination_balance - T.sumAmountInTransfers(v, v.destination.ledger);
-                
-                let ?rate_source = rates.get_rate(v.source.ledger) else continue preparation;
-                let ?rate_destination = rates.get_rate(v.destination.ledger) else continue preparation;
-                v.source_rate_usd := rate_source;
-                v.destination_rate_usd := rate_destination;
-                switch (v.algo) {
-                    case (#v1(algo)) {
-                        let wiggle = Float.sin((Float.fromInt(Nat32.toNat(now - v.created)) / 6.28) / algo.multiplier_wiggle_seconds) * algo.multiplier_wiggle;
-                        let multiplier = algo.multiplier + wiggle;
+            monitor.measure(Monitor.PREPARE_VECTORS, func () {
+                let now = T.now();
+                label preparation for ((k, v) in Map.entries(dvectors)) {
+                    v.source_balance_available := v.source_balance - T.sumAmountInTransfers(v, v.source.ledger);
+                    v.destination_balance_available := v.destination_balance - T.sumAmountInTransfers(v, v.destination.ledger);
+                    
+                    let ?rate_source = rates.get_rate(v.source.ledger) else continue preparation;
+                    let ?rate_destination = rates.get_rate(v.destination.ledger) else continue preparation;
+                    v.source_rate_usd := rate_source;
+                    v.destination_rate_usd := rate_destination;
+                    switch (v.algo) {
+                        case (#v1(algo)) {
+                            let wiggle = Float.sin((Float.fromInt(Nat32.toNat(now - v.created)) / 6.28) / algo.multiplier_wiggle_seconds) * algo.multiplier_wiggle;
+                            let multiplier = algo.multiplier + wiggle;
 
-                        v.rate := Float.min(algo.max, (rate_destination / rate_source) * multiplier);
-                        if (v.source_balance_tradable_last_update + algo.interval_seconds < now) {
-                            v.source_balance_tradable_last_update := now;
-                            let tokens_to_add = T.natAmount(algo.interval_release_usd / rate_source, v.source.ledger_decimals);
-                            let tokens_max_tradable = T.natAmount(algo.max_tradable_usd / rate_source, v.source.ledger_decimals);
-                            v.source_balance_tradable := Nat.min(v.source_balance_available, Nat.min(v.source_balance_tradable + tokens_to_add, tokens_max_tradable));
-                            assert (v.source_balance_tradable <= v.source_balance_available);
+                            v.rate := Float.min(algo.max, (rate_destination / rate_source) * multiplier);
+                            if (v.source_balance_tradable_last_update + algo.interval_seconds < now) {
+                                v.source_balance_tradable_last_update := now;
+                                let tokens_to_add = T.natAmount(algo.interval_release_usd / rate_source, v.source.ledger_decimals);
+                                let tokens_max_tradable = T.natAmount(algo.max_tradable_usd / rate_source, v.source.ledger_decimals);
+                                v.source_balance_tradable := Nat.min(v.source_balance_available, Nat.min(v.source_balance_tradable + tokens_to_add, tokens_max_tradable));
+                                assert (v.source_balance_tradable <= v.source_balance_available);
+                            };
+                            v.source_balance_tradable := Nat.min(v.source_balance_tradable, v.source_balance_available);
+                            apply_active_rules(v);
+                            // v.active := v.source_balance_tradable > v.source.ledger_fee * 300; //Rule: One of the ledgers must not have a fee higher than 300 times the other ledger fee
                         };
-                        v.source_balance_tradable := Nat.min(v.source_balance_tradable, v.source_balance_available);
-                        apply_active_rules(v);
-                        // v.active := v.source_balance_tradable > v.source.ledger_fee * 300; //Rule: One of the ledgers must not have a fee higher than 300 times the other ledger fee
                     };
-                };
 
-            };
+                };
+            })
         };
 
         private func apply_active_rules(v : T.DVector) : () {
@@ -75,16 +81,18 @@ module {
 
         private func tick() : async () {
             try {
-                await settle(Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai"), Principal.fromText("mxzaz-hqaaa-aaaar-qaada-cai"));
+                await settle();
             } catch (e) {
                 Vector.add(errlog, "matching:settle:" # Error.message(e));
             };
             ignore Timer.setTimer(#seconds 2, tick);
         };
 
-        public func settle(ledger_left : Principal, ledger_right : Principal) : async () {
+        public func settle() : async () {
 
             prepare_vectors();
+            
+            monitor.measure(Monitor.SETTLE_VECTORS, func () {
 
             let left_side = Map.entries(dvectors)
             |> Iter.filter<(K, V)>(
@@ -165,6 +173,8 @@ module {
                 };
 
             };
+            
+            });
         };
 
         public func make_withdraw_transaction(from_id : T.DVectorId, from : V, amountInc : Nat, to : Ledger.Account, location : T.VLocation) : Nat64 {

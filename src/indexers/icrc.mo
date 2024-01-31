@@ -9,6 +9,8 @@ import Array "mo:base/Array";
 import Nat "mo:base/Nat";
 import History "../history";
 import Blob "mo:base/Blob";
+import Monitor "../monitor";
+import Prim "mo:⛔";
 
 module {
 
@@ -43,6 +45,9 @@ module {
         ledger_id : Principal;
         dvectors : Map.Map<T.DVectorId, T.DVector>;
         history : History.History;
+        monitor : Monitor.Monitor;
+        metric_key: Monitor.MetricKey;
+
     }) {
 
         let ledger = actor (Principal.toText(ledger_id)) : Ledger.Self;
@@ -151,9 +156,11 @@ module {
             start : Nat;
             transactions : [Ledger.Transaction];
         };
+        
         private func proc() : async () {
             if (mem.paused) return;
-           
+            let inst_start = Prim.performanceCounter(1); // 1 is preserving with async
+
             // start from the end of last_indexed_tx = 0
             if (mem.last_indexed_tx == 0) {
                 let rez = await ledger.get_transactions({
@@ -205,6 +212,8 @@ module {
                 };
             };
 
+            let inst_end = Prim.performanceCounter(1); // 1 is preserving with async
+            monitor.add(metric_key, inst_end - inst_start);
         };
 
         private func qtimer() : async () {

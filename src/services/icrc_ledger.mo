@@ -214,7 +214,7 @@ module {
     icrc1_transfer : shared TransferArg -> async Result;
     icrc2_allowance : shared query AllowanceArgs -> async Allowance;
     icrc2_approve : shared ApproveArgs -> async Result_1;
-    icrc2_transfer_from : shared TransferFromArgs -> ();
+    icrc2_transfer_from : shared TransferFromArgs -> async Result_2;
   };
 
   public type Oneway = actor {

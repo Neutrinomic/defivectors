@@ -17,6 +17,8 @@ import Blob "mo:base/Blob";
 import Nat64 "mo:base/Nat64";
 import Nat32 "mo:base/Nat32";
 import History "./history";
+import Monitor "./monitor";
+import Prim "mo:⛔";
 
 module {
 
@@ -26,9 +28,12 @@ module {
         errlog : Vector.Vector<Text>;
         dvectors : Map.Map<T.DVectorId, T.DVector>;
         history : History.History;
+        monitor : Monitor.Monitor;
     }) {
 
         private func tick() : async () {
+            let inst_start = Prim.performanceCounter(1); // 1 is preserving with async
+
             let now = T.now();
             label sending for ((k, v) in Map.entries(dvectors)) {
                 label vtransactions for (tx in v.unconfirmed_transactions.vals()) {
@@ -66,6 +71,9 @@ module {
                 };
             };
             ignore Timer.setTimer(#seconds 5, tick);
+            let inst_end = Prim.performanceCounter(1);
+            monitor.add(Monitor.SENDER, inst_end - inst_start);
+
         };
 
         public func start_timer() {

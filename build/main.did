@@ -73,7 +73,10 @@ type Tx =
 type Timestamp = nat32;
 type Swap = 
  service {
-   create_vector: (DVectorRequest) -> (R_2);
+   create_vector: (DVectorRequest, variant {
+                                     icp;
+                                     ntn;
+                                   }) -> (R_3);
    get_architect_vectors: (record {
                              id: principal;
                              length: nat;
@@ -82,16 +85,16 @@ type Swap =
    get_events: (record {
                   length: nat;
                   start: nat;
-                }) -> (R_1) query;
+                }) -> (R_2) query;
    get_vector: (DVectorId__1) -> (opt DVectorShared) query;
    get_vector_events: (record {
                          id: DVectorId;
                          length: nat;
                          start: nat;
-                       }) -> (R_1) query;
-   index_pause: (bool) -> ();
+                       }) -> (R_2) query;
+   get_vector_price: () -> (R_1) query;
+   monitor_snapshot: () -> (SnapshotResponse) query;
    show_log: () -> (vec text) query;
-   stats: () -> (vec nat) query;
    withdraw_vector:
     (record {
        amount: nat;
@@ -101,20 +104,37 @@ type Swap =
      }) -> (R);
  };
 type SourceEndpointInput = record {ledger: principal;};
-type R_2 = 
+type SnapshotResponse = record {monitor: vec Metric;};
+type R_3 = 
  variant {
    err: text;
    ok: DVectorId__1;
  };
-type R_1 = 
+type R_2 = 
  variant {
    err: text;
    ok: HistoryResponse;
+ };
+type R_1 = 
+ variant {
+   err: text;
+   ok: record {
+         icp: nat;
+         ntn: nat;
+       };
  };
 type R = 
  variant {
    err: text;
    ok: nat64;
+ };
+type MetricVal = nat64;
+type MetricKey = nat8;
+type Metric = 
+ record {
+   Timestamp;
+   MetricKey;
+   MetricVal;
  };
 type HistoryResponse = 
  record {

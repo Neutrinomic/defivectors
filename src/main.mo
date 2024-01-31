@@ -1,6 +1,8 @@
 import Principal "mo:base/Principal";
 import Array "mo:base/Array";
 import Ledger "./services/icrc_ledger";
+import IcpLedger "./services/icp_ledger";
+
 import Map "mo:map/Map";
 import T "./types";
 import Result "mo:base/Result";
@@ -24,6 +26,7 @@ import IndexerICP "./indexers/icp";
 import Sender "./sender";
 import History "./history";
 import Architect "./architect";
+import Monitor "./monitor";
 
 actor class Swap() = this {
   type R<A, B> = Result.Result<A, B>;
@@ -37,15 +40,18 @@ actor class Swap() = this {
   type DVectorShared = T.DVectorShared;
 
   let nhash = Map.n32hash;
-  let NTN_ledger = actor ("f54if-eqaaa-aaaaq-aacea-cai") : Ledger.Self;
-  let ICP_ledger = Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai");
-  let BTC_ledger = Principal.fromText("mxzaz-hqaaa-aaaar-qaada-cai");
-  // let neutrinite_treasury : Ledger.Account = {
-  //   owner = Principal.fromText("eqsml-lyaaa-aaaaq-aacdq-cai");
-  //   subaccount = ?"\61\47\4b\07\1a\86\0b\27\95\75\c9\54\ce\5f\35\98\f4\f8\63\f8\c6\f4\50\86\0c\d3\c3\11\43\16\ef\2d" : ?Blob;
-  // };
+
+  let VECTOR_NTN_cost = 4_0000_0000;
+  let NTN_ledger_id = Principal.fromText("f54if-eqaaa-aaaaq-aacea-cai");
+  let ICP_ledger_id = Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai");
+  let NTN_ledger = actor (Principal.toText(NTN_ledger_id)) : Ledger.Self;
+  let ICP_ledger = actor (Principal.toText(ICP_ledger_id)) : IcpLedger.Self;
+
+  let LEFT_ledger = Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai");
+  let RIGHT_ledger = Principal.fromText("mxzaz-hqaaa-aaaar-qaada-cai");
 
   // let whitelisted = Principal.fromText("lovjp-a2s3z-lqgmk-epyel-hshnr-ksdzf-abimc-f7dpu-33z4u-2vbkf-uae");
+  let gov_canister_id = Principal.fromText("z45mi-3hwqo-bsda6-saeqm-fambt-gp7rn-aynd3-v4oga-dfe24-voedf-mae");
 
   stable let _dvectors = Map.new<DVectorId, DVector>();
   stable var _nextDVectorId : DVectorId = 0;
@@ -55,6 +61,8 @@ actor class Swap() = this {
 
   stable let _history_mem = Vector.new<T.History.Tx>();
 
+  let _monitor = Monitor.Monitor();
+
   let _history = History.History({
     mem = _history_mem;
   });
@@ -62,14 +70,15 @@ actor class Swap() = this {
   let _errlog = Vector.new<Text>();
 
   let _ledgermeta = LedgerMeta.LedgerMeta({
-    ledgers = [ICP_ledger, BTC_ledger];
+    ledgers = [LEFT_ledger, RIGHT_ledger];
   });
 
   let _rates = Rates.Rates({
     whitelisted = [
       // id in defiaggregator config, ledger
-      (3, ICP_ledger), // ICP
-      (1, BTC_ledger) // BTC
+      (3, LEFT_ledger), // ICP
+      (1, RIGHT_ledger), // BTC
+      (30, NTN_ledger_id) // NTN
     ];
   });
 
@@ -85,40 +94,47 @@ actor class Swap() = this {
     dvectors = _dvectors;
     errlog = _errlog;
     history = _history;
+    monitor = _monitor;
+    ledger_left = LEFT_ledger;
+    ledger_right = RIGHT_ledger;
   });
 
   // ---
 
-  stable let _indexer_ckBTC_mem : IndexerICRC.Mem = {
+  stable let _indexer_right_mem : IndexerICRC.Mem = {
     var last_indexed_tx = 0; // leave 0 to start from the last one
     source2vector = Map.new<Ledger.Account, DVectorId>();
     destination2vector = Map.new<Ledger.Account, DVectorId>();
     var paused = false;
   };
 
-  let _indexer_ckBTC = IndexerICRC.Indexer({
-    ledger_id = BTC_ledger;
-    mem = _indexer_ckBTC_mem;
+  let _indexer_right = IndexerICRC.Indexer({
+    ledger_id = RIGHT_ledger;
+    mem = _indexer_right_mem;
     dvectors = _dvectors;
     errlog = _errlog;
     history = _history;
+    monitor = _monitor;
+    metric_key = Monitor.INDEXER_RIGHT;
   });
 
   // ---
 
-  stable let _indexer_ICP_mem : IndexerICP.Mem = {
+  stable let _indexer_left_mem : IndexerICP.Mem = {
     var last_indexed_tx = 0; // leave 0 to start from the last one
     source2vector = Map.new<Blob, DVectorId>();
     destination2vector = Map.new<Blob, DVectorId>();
     var paused = false;
   };
 
-  let _indexer_ICP = IndexerICP.Indexer({
-    ledger_id = ICP_ledger;
-    mem = _indexer_ICP_mem;
+  let _indexer_left = IndexerICP.Indexer({
+    ledger_id = LEFT_ledger;
+    mem = _indexer_left_mem;
     dvectors = _dvectors;
     errlog = _errlog;
     history = _history;
+    monitor = _monitor;
+    metric_key = Monitor.INDEXER_LEFT;
   });
 
   // ---
@@ -127,69 +143,104 @@ actor class Swap() = this {
     errlog = _errlog;
     dvectors = _dvectors;
     history = _history;
+    monitor = _monitor;
   });
 
   // ---
+
   let _architects = Architect.Architect({
     mem = _architects_mem;
     dvectors = _dvectors;
     history_mem = _history_mem;
   });
 
-  ignore Timer.setTimer(
-    #seconds 1,
-    func() : async () {
-      // Some timers were not starting when directly placed in classes
 
-      _sender.start_timer();
-      _indexer_ckBTC.start_timer();
-      _indexer_ICP.start_timer();
-    },
-  );
+  // --- Start timers
+  var timer_to_start = 0;
+  let timers :[() -> ()] = [
+      func () { _sender.start_timer() },
+      func () { _indexer_right.start_timer() },
+      func () { _indexer_left.start_timer() },
+      func () { _ledgermeta.start_timer() },
+      func () { _rates.start_timer() },
+      func () { _matching.start_timer() },
+  ];
 
-  ignore Timer.setTimer(
-    #seconds 1,
-    func() : async () {
-      // Some timers were not starting when directly placed in classes
-      _ledgermeta.start_timer();
-      _rates.start_timer();
-      _matching.start_timer();
-
-    },
-  );
-
-  // Transfer NTN from account using icrc2, trap on error
-  // private func require_ntn_transfer(from : Principal, amount : Nat, reciever : Ledger.Account) : async () {
-  //   switch (await ntn_ledger.icrc2_transfer_from({ from = { owner = from; subaccount = null }; spender_subaccount = null; to = reciever; fee = null; memo = null; from_subaccount = null; created_at_time = null; amount = amount })) {
-  //     case (#Ok(_))();
-  //     case (#Err(e)) Debug.trap(debug_show (e));
-  //   };
-  // };
-
-  public query func stats() : async [Nat] {
-    [
-      _indexer_ICP_mem.last_indexed_tx,
-      _indexer_ckBTC_mem.last_indexed_tx,
-    ];
+  private func start_timers() : async () {
+      timers[timer_to_start]();
+      timer_to_start += 1;
+      if (timer_to_start < timers.size()) ignore Timer.setTimer( #seconds 1, start_timers );
   };
 
-  public shared ({ caller }) func create_vector(req : DVectorRequest) : async R<DVectorId, Text> {
+  ignore Timer.setTimer( #seconds 1, start_timers );
 
-    // await require_ntn_transfer(
-    //   caller,
-    //   req.initiator_collateral,
-    //   {
-    //     owner = Principal.fromActor(this);
-    //     subaccount = ?T.getPrincipalSubaccount(caller);
-    //   },
-    // );
+  // ---
+
+  // Transfer NTN from account using icrc2, trap on error
+  private func require_ntn_transfer(from : Principal, amount : Nat, reciever : Ledger.Account) : async R<(), Text> {
+    switch (await NTN_ledger.icrc2_transfer_from({ from = { owner = from; subaccount = null }; spender_subaccount = null; to = reciever; fee = null; memo = null; from_subaccount = null; created_at_time = null; amount = amount })) {
+      case (#Ok(_)) #ok();
+      case (#Err(e)) #err(debug_show(e));
+    };
+  };
+
+  // Transfer ICP from account using icrc2, trap on error
+  private func require_icp_transfer(from : Principal, amount : Nat, reciever : Ledger.Account) : async R<(), Text> {
+    switch (await NTN_ledger.icrc2_transfer_from({ from = { owner = from; subaccount = null }; spender_subaccount = null; to = reciever; fee = null; memo = null; from_subaccount = null; created_at_time = null; amount = amount })) {
+      case (#Ok(_)) #ok();
+      case (#Err(e)) #err(debug_show(e));
+    };
+  };
+
+  public shared ({ caller }) func create_vector(req : DVectorRequest, payment_token:{#icp; #ntn}) : async R<DVectorId, Text> {
 
     let ?source_ledger_meta = _ledgermeta.get(req.source.ledger) else return #err("source ledger meta not found");
     let ?destination_ledger_meta = _ledgermeta.get(req.destination.ledger) else return #err("destination ledger meta not found");
 
-    let source_ledger = actor (Principal.toText(req.source.ledger)) : Ledger.Self;
-    let destination_ledger = actor (Principal.toText(req.destination.ledger)) : Ledger.Self;
+    if (req.source.ledger == req.destination.ledger) return #err("source and destination ledgers are the same");
+    if (req.source.ledger != LEFT_ledger and req.source.ledger != RIGHT_ledger) return #err("ledger is not supported in this factory");
+    if (req.destination.ledger != LEFT_ledger and req.destination.ledger != RIGHT_ledger) return #err("ledger is not supported in this factory");
 
+    // Payment
+    if (caller != gov_canister_id) {
+      switch(payment_token) {
+        case (#icp) {
+
+          let ?ntn_usd_price = _rates.get_rate(NTN_ledger_id) else return #err("NTN price not found");
+          let ?icp_usd_price = _rates.get_rate(ICP_ledger_id) else return #err("ICP price not found");
+          let vector_cost_ICP = T.natAmount( T.floatAmount(VECTOR_NTN_cost, 8) * ntn_usd_price / icp_usd_price, 8);
+          switch(await require_icp_transfer(
+                caller,
+                vector_cost_ICP,
+                {
+                  owner = Principal.fromActor(this);
+                  subaccount = null;
+                },
+              )) {
+                case (#ok()) ();
+                case (#err(e)) return #err(e);
+              };
+        };
+
+        case (#ntn) {
+          switch(await require_ntn_transfer(
+                caller,
+                VECTOR_NTN_cost,
+                {
+                  owner = Principal.fromActor(this);
+                  subaccount = null;
+                },
+              )) {
+                case (#ok()) ();
+                case (#err(e)) return #err(e);
+              };
+        }
+      };
+
+   
+    };
+
+   
     let pid = _nextDVectorId;
     _nextDVectorId += 1;
 
@@ -225,11 +276,11 @@ actor class Swap() = this {
       var rate = 0;
       created = T.now();
       source;
-      var source_balance = await source_ledger.icrc1_balance_of(source.address);
+      var source_balance = 0;//await source_ledger.icrc1_balance_of(source.address);
       var source_balance_available = 0;
       var source_balance_tradable = 0;
       var source_balance_tradable_last_update = T.now();
-      var destination_balance = await destination_ledger.icrc1_balance_of(destination.address);
+      var destination_balance = 0;//await destination_ledger.icrc1_balance_of(destination.address);
       var source_rate_usd = 0;
       var destination_rate_usd = 0;
       var destination_balance_available = 0;
@@ -240,8 +291,8 @@ actor class Swap() = this {
 
     Map.set(_dvectors, nhash, pid, dvector);
     _architects.add_vector(caller, pid);
-    _indexer_ICP.register_vector(pid, dvector);
-    _indexer_ckBTC.register_vector(pid, dvector);
+    _indexer_left.register_vector(pid, dvector);
+    _indexer_right.register_vector(pid, dvector);
 
     #ok pid;
   };
@@ -256,6 +307,18 @@ actor class Swap() = this {
     length : Nat;
   }) : async Architect.ArchVectorsResult {
     _architects.get_vectors(id, start, length);
+  };
+
+  public query func get_vector_price() : async R<{icp:Nat; ntn:Nat}, Text> {
+
+    let ?ntn_usd_price = _rates.get_rate(NTN_ledger_id) else return #err("NTN price not found");
+    let ?icp_usd_price = _rates.get_rate(ICP_ledger_id) else return #err("ICP price not found");
+    let vector_cost_ICP = T.natAmount( T.floatAmount(VECTOR_NTN_cost, 8) * ntn_usd_price / icp_usd_price, 8);
+
+    #ok {
+      icp = vector_cost_ICP;
+      ntn = VECTOR_NTN_cost;
+    };
   };
 
   public query func get_events({ start : Nat; length : Nat }) : async R<T.History.HistoryResponse, Text> {
@@ -331,16 +394,28 @@ actor class Swap() = this {
     };
 
     #ok(_matching.make_withdraw_transaction(id, vector, amount, to, location));
-
   };
 
   public query func show_log() : async [Text] {
     Vector.toArray(_errlog);
   };
 
-  public func index_pause(paused : Bool) : async () {
-    _indexer_ckBTC_mem.paused := paused;
-    _indexer_ICP_mem.paused := paused;
+  // public func index_pause(paused : Bool) : async () {
+  //   // TODO: security remove
+  //   _indexer_right_mem.paused := paused;
+  //   _indexer_left_mem.paused := paused;
+  // };
+
+  type SnapshotResponse = {
+    monitor: [Monitor.Metric];
   };
+
+  public query func monitor_snapshot() : async SnapshotResponse {
+    {
+      monitor =_monitor.snapshot();
+      indexed_left = _indexer_left_mem.last_indexed_tx;
+      indexed_right = _indexer_right_mem.last_indexed_tx;
+    }
+  }
 
 };
