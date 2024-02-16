@@ -47,7 +47,6 @@ module {
         history : History.History;
         monitor : Monitor.Monitor;
         metric_key: Monitor.MetricKey;
-
     }) {
 
         let ledger = actor (Principal.toText(ledger_id)) : Ledger.Self;

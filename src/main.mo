@@ -192,6 +192,46 @@ actor class Swap() = this {
     };
   };
 
+  public shared ({ caller }) func modify_vector(req : T.DVectorChangeRequest) : async R<(), Text> {
+    let ?vector = Map.get(_dvectors, nhash, req.id) else return #err("vector not found");
+    if (caller != vector.owner) return #err("caller is not the owner");
+    
+    let local_address = {
+          owner = Principal.fromActor(this);
+          subaccount = ?T.getDVectorSubaccount(req.id, #destination);
+          } : Ledger.Account;
+
+    switch(req.destination) {
+      case (#unchanged) ();
+      case (#set(addr)) {
+        if (vector.destination_balance_available != vector.destination_balance) return #err("Can't change destination when tokens are in transit from the destination address");
+        if ((not vector.remote_destination) and vector.destination_balance != 0) return #err("You have to withdraw everything from destination balance before changing the destination address"); // or we users can't withdraw it anymore
+        if (local_address == addr) return #err("You shouldn't set the remote address to be the local address. Try clear instead");
+        if (not T.is_valid_account(addr)) return #err("Destination address is not valid");
+        if (addr == vector.destination.address) return #err("Destination address is the same");
+
+        vector.destination_balance := 0;
+        vector.destination_balance_available := 0;
+        vector.destination := {vector.destination with address = addr}; 
+        vector.remote_destination := true;
+      };
+      case (#clear) {
+        if (vector.destination.address == local_address) return #err("Already using the vector's local address");
+
+        vector.remote_destination := false;
+        vector.destination := {vector.destination with address = local_address };
+        vector.destination_balance := 0;
+        vector.destination_balance_available := 0;
+      }
+    };
+
+    vector.algo := req.algo;
+
+    vector.modified := T.now();
+    #ok();
+  };
+
+
   public shared ({ caller }) func create_vector(req : DVectorRequest, payment_token:{#icp; #ntn}) : async R<DVectorId, Text> {
 
     let ?source_ledger_meta = _ledgermeta.get(req.source.ledger) else return #err("source ledger meta not found");
@@ -200,6 +240,9 @@ actor class Swap() = this {
     if (req.source.ledger == req.destination.ledger) return #err("source and destination ledgers are the same");
     if (req.source.ledger != LEFT_ledger and req.source.ledger != RIGHT_ledger) return #err("ledger is not supported in this factory");
     if (req.destination.ledger != LEFT_ledger and req.destination.ledger != RIGHT_ledger) return #err("ledger is not supported in this factory");
+    ignore do ? {
+      if (not T.is_valid_account(req.destination.address!)) return #err("destination address is not valid");
+    };
 
     // Payment
     if (caller != gov_canister_id) {
@@ -240,6 +283,8 @@ actor class Swap() = this {
    
     };
 
+    let source_ledger = actor (Principal.toText(req.source.ledger)) : Ledger.Self;
+    let destination_ledger = actor (Principal.toText(req.destination.ledger)) : Ledger.Self;
    
     let pid = _nextDVectorId;
     _nextDVectorId += 1;
@@ -269,24 +314,27 @@ actor class Swap() = this {
       ledger_symbol = destination_ledger_meta.symbol;
     };
 
+
     let dvector : DVector = {
       owner = caller;
-      algo = req.algo;
+      var algo = req.algo;
       var active = false;
       var rate = 0;
       created = T.now();
+      var modified = T.now();
       source;
-      var source_balance = 0;//await source_ledger.icrc1_balance_of(source.address);
+      var source_balance = await source_ledger.icrc1_balance_of(source.address);
       var source_balance_available = 0;
       var source_balance_tradable = 0;
       var source_balance_tradable_last_update = T.now();
-      var destination_balance = 0;//await destination_ledger.icrc1_balance_of(destination.address);
+      var destination_balance = await destination_ledger.icrc1_balance_of(destination.address);
       var source_rate_usd = 0;
       var destination_rate_usd = 0;
       var destination_balance_available = 0;
-      destination;
+      var destination = destination;
       var unconfirmed_transactions = [];
       history = Vector.new<T.History.TxId>();
+      var remote_destination = req.destination.address != null
     };
 
     Map.set(_dvectors, nhash, pid, dvector);
@@ -301,12 +349,12 @@ actor class Swap() = this {
     T.DVector.toShared(_history_mem, Map.get(_dvectors, nhash, pid));
   };
 
-  public query func get_architect_vectors({
+  public query({caller}) func get_architect_vectors({
     id : Principal;
     start : Nat;
     length : Nat;
   }) : async Architect.ArchVectorsResult {
-    _architects.get_vectors(id, start, length);
+    _architects.get_vectors(id, start, length, caller);
   };
 
   public query func get_vector_price() : async R<{icp:Nat; ntn:Nat}, Text> {
@@ -380,15 +428,15 @@ actor class Swap() = this {
           if (amount <= vector.source.ledger_fee * 10) return #err("amount is too low");
       };
       case (#destination) {
-          // Check if the destination is the destination of this vector
+          // Double check if the destination is the destination of this vector
           // if not - it could be the source of another vector
           // in which case we have to deny the withdraw
           let vector_destination = {
             owner = Principal.fromActor(this);
             subaccount = ?T.getDVectorSubaccount(id, #destination);
           } : Ledger.Account;
-
-          if (vector_destination != vector.destination.address) return #err("destination is the source of another vector or remote");
+          
+          if (vector.remote_destination or vector_destination != vector.destination.address) return #err("destination is the source of another vector or remote");
           if (amount <= vector.destination.ledger_fee * 10) return #err("amount is too low");
       };
     };

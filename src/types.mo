@@ -63,9 +63,20 @@ module {
         algo : Algo;
     };
 
+    public type DVectorChangeRequest = {
+        id: DVectorId;
+        algo : Algo;
+        destination: {
+            #unchanged;
+            #set :Ledger.Account;
+            #clear
+        };
+    };
+
     public type DVector = {
         owner : Principal;
         created : Timestamp;
+        var modified: Timestamp;
         source : Endpoint;
         var source_balance : Nat;
         var source_balance_available : Nat;
@@ -73,13 +84,14 @@ module {
         var source_balance_tradable_last_update : Timestamp;
         var source_rate_usd : Float;
         var destination_rate_usd : Float;
-        destination : Endpoint;
+        var destination : Endpoint;
         var destination_balance : Nat;
         var destination_balance_available : Nat;
-        algo : Algo;
+        var algo : Algo;
         var rate : Float;
         var active : Bool;
         var unconfirmed_transactions : [UnconfirmedTransaction];
+        var remote_destination: Bool;
         history : Vector.Vector<History.TxId>;
     };
 
@@ -121,6 +133,7 @@ module {
     public type DVectorShared = {
         owner : Principal;
         created : Timestamp;
+        modified: Timestamp;
         source : Endpoint;
         source_balance : Nat;
         source_balance_available : Nat;
@@ -131,10 +144,11 @@ module {
         destination_balance_available : Nat;
         source_rate_usd : Float;
         destination_rate_usd : Float;
-        algo : Algo;
+        algo : ?Algo;
         rate : Float;
         active : Bool;
         unconfirmed_transactions : [UnconfirmedTransactionShared];
+        remote_destination: Bool;
         total_events : Nat;
     };
 
@@ -143,7 +157,10 @@ module {
             let ?t = tr else return null;
             ?{
                 t with
+                modified = t.modified;
                 source_balance = t.source_balance;
+                destination = t.destination;
+                algo = ?t.algo;
                 rate = t.rate;
                 active = t.active;
                 unconfirmed_transactions = Array.map<UnconfirmedTransaction, UnconfirmedTransactionShared>(t.unconfirmed_transactions, UnconfirmedTransaction.toShared);
@@ -155,7 +172,18 @@ module {
                 source_rate_usd = t.source_rate_usd;
                 destination_rate_usd = t.destination_rate_usd;
                 total_events = Vector.size(t.history);
+                remote_destination = t.remote_destination;
             };
+        };
+
+
+        public func toSharedNotOwner(history : Vector.Vector<History.Tx>, tr : ?DVector) : ?DVectorShared {
+            let ?t = toShared(history, tr) else return null;
+            ?{
+                t with
+                algo = null;
+            };
+            
         };
     };
 
@@ -327,6 +355,10 @@ module {
         ?f.1;
     };
 
-
+    public func is_valid_account(account : Ledger.Account) : Bool {
+       let ?subaccount = account.subaccount else return true;
+       if (subaccount.size() != 32) return false;
+       return true;
+    };
 
 };

@@ -76,7 +76,7 @@ type Swap =
    create_vector: (DVectorRequest, variant {
                                      icp;
                                      ntn;
-                                   }) -> (R_3);
+                                   }) -> (R_4);
    get_architect_vectors: (record {
                              id: principal;
                              length: nat;
@@ -85,14 +85,15 @@ type Swap =
    get_events: (record {
                   length: nat;
                   start: nat;
-                }) -> (R_2) query;
+                }) -> (R_3) query;
    get_vector: (DVectorId__1) -> (opt DVectorShared) query;
    get_vector_events: (record {
                          id: DVectorId;
                          length: nat;
                          start: nat;
-                       }) -> (R_2) query;
-   get_vector_price: () -> (R_1) query;
+                       }) -> (R_3) query;
+   get_vector_price: () -> (R_2) query;
+   modify_vector: (DVectorChangeRequest) -> (R_1);
    monitor_snapshot: () -> (SnapshotResponse) query;
    show_log: () -> (vec text) query;
    withdraw_vector:
@@ -105,23 +106,28 @@ type Swap =
  };
 type SourceEndpointInput = record {ledger: principal;};
 type SnapshotResponse = record {monitor: vec Metric;};
-type R_3 = 
+type R_4 = 
  variant {
    err: text;
    ok: DVectorId__1;
  };
-type R_2 = 
+type R_3 = 
  variant {
    err: text;
    ok: HistoryResponse;
  };
-type R_1 = 
+type R_2 = 
  variant {
    err: text;
    ok: record {
          icp: nat;
          ntn: nat;
        };
+ };
+type R_1 = 
+ variant {
+   err: text;
+   ok;
  };
 type R = 
  variant {
@@ -160,14 +166,16 @@ type DestinationEndpointInput =
 type DVectorShared__1 = 
  record {
    active: bool;
-   algo: Algo;
+   algo: opt Algo;
    created: Timestamp;
    destination: Endpoint;
    destination_balance: nat;
    destination_balance_available: nat;
    destination_rate_usd: float64;
+   modified: Timestamp;
    owner: principal;
    rate: float64;
+   remote_destination: bool;
    source: Endpoint;
    source_balance: nat;
    source_balance_available: nat;
@@ -180,14 +188,16 @@ type DVectorShared__1 =
 type DVectorShared = 
  record {
    active: bool;
-   algo: Algo;
+   algo: opt Algo;
    created: Timestamp;
    destination: Endpoint;
    destination_balance: nat;
    destination_balance_available: nat;
    destination_rate_usd: float64;
+   modified: Timestamp;
    owner: principal;
    rate: float64;
+   remote_destination: bool;
    source: Endpoint;
    source_balance: nat;
    source_balance_available: nat;
@@ -205,6 +215,16 @@ type DVectorRequest =
  };
 type DVectorId__1 = nat32;
 type DVectorId = nat32;
+type DVectorChangeRequest = 
+ record {
+   algo: Algo;
+   destination: variant {
+                  clear;
+                  set: Account;
+                  unchanged;
+                };
+   id: DVectorId;
+ };
 type ArchVectorsResult = 
  record {
    entries: vec record {
