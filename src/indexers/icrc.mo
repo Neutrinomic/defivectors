@@ -11,6 +11,7 @@ import History "../history";
 import Blob "mo:base/Blob";
 import Monitor "../monitor";
 import Prim "mo:⛔";
+import Option "mo:base/Option";
 
 module {
 
@@ -73,6 +74,20 @@ module {
 
             label looptx for (t in transactions.vals()) {
 
+                if (not Option.isNull(t.mint)) {
+                    let ?mint = t.mint else continue looptx;
+                    ignore do ? {
+                        let vid = get_source_vector(mint.to)!;
+                        let v = Map.get<T.DVectorId, T.DVector>(dvectors, Map.n32hash, vid)!;
+                        v.source_balance += mint.amount;
+                        history.add([v], #source_in({
+                            vid = vid;
+                            amount = mint.amount;
+                            fee = 0;
+                        }))
+                    }
+                };
+                
                 let ?tr = t.transfer else continue looptx;
 
                 ignore do ? {

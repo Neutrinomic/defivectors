@@ -23,6 +23,7 @@ import Prim "mo:⛔";
 module {
 
     let RETRY_EVERY_SEC:Float = 60;
+    let MAX_SENT_EACH_CYCLE:Nat = 125;
 
     public class Sender({
         errlog : Vector.Vector<Text>;
@@ -35,6 +36,7 @@ module {
             let inst_start = Prim.performanceCounter(1); // 1 is preserving with async
 
             let now = T.now();
+            var sent_count = 0;
             label sending for ((k, v) in Map.entries(dvectors)) {
                 label vtransactions for (tx in v.unconfirmed_transactions.vals()) {
                     
@@ -44,8 +46,7 @@ module {
                         let time_for_try = Float.toInt(Float.ceil((Float.fromInt(Nat32.toNat(now - tx.timestamp)))/RETRY_EVERY_SEC));
 
                         if (tx.tries >= time_for_try) continue vtransactions;
-                        tx.tries += 1;
-
+                        
                         var error = false;
                         try {
                             // Relies on transaction deduplication https://github.com/dfinity/ICRC-1/blob/main/standards/ICRC-1/README.md
@@ -57,9 +58,12 @@ module {
                                 memo = ?tx.memo;
                                 fee = null;
                             });
+                            tx.tries += 1;
+                            sent_count += 1;
                         } catch (e) { // It may reach oneway transaction limit
                             error := true;
                             Vector.add(errlog, "sender:" # Principal.toText(tx.ledger) # ":" # Error.message(e));
+                            break sending;
                         };
 
                         history.add([v], #tx_sent {
@@ -67,10 +71,12 @@ module {
                             retry = tx.tries;
                             error;
                         });
+
+                        if (sent_count >= MAX_SENT_EACH_CYCLE) break sending;
                         
                 };
             };
-            ignore Timer.setTimer(#seconds 5, tick);
+            ignore Timer.setTimer(#seconds 2, tick);
             let inst_end = Prim.performanceCounter(1);
             monitor.add(Monitor.SENDER, inst_end - inst_start);
 

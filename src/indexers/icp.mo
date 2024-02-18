@@ -55,83 +55,101 @@ module {
             
             label looptx for (t in transactions.vals()) {
 
-                let ? #Transfer(tr) = t.transaction.operation else continue looptx;
-                let amount = Nat64.toNat(tr.amount.e8s);
+                switch(t.transaction.operation) {
+                    case (?#Mint(mint)) {
+                        ignore do ? {
+                            let vid = get_source_vector(mint.to)!;
+                            let v = Map.get<T.DVectorId, T.DVector>(dvectors, Map.n32hash, vid)!;
 
-                ignore do ? {
-                    let vid = get_source_vector(tr.to)!;
-                    let v = Map.get<T.DVectorId, T.DVector>(dvectors, Map.n32hash, vid)!;
-                    let fee = Nat64.toNat(tr.fee.e8s);
+                            v.source_balance += Nat64.toNat(mint.amount.e8s);
 
-                    v.source_balance += amount;
+                            history.add([v], #source_in({
+                                vid = vid;
+                                amount = Nat64.toNat(mint.amount.e8s);
+                                fee = 0;
+                            }))
+                        };
+                    };
+                    case (?#Transfer(tr)) {
+                        let amount = Nat64.toNat(tr.amount.e8s);
 
-                    history.add([v], #source_in({
-                        vid = vid;
-                        amount = amount;
-                        fee = fee;
-                    }))
-                };
+                        ignore do ? {
+                            let vid = get_source_vector(tr.to)!;
+                            let v = Map.get<T.DVectorId, T.DVector>(dvectors, Map.n32hash, vid)!;
+                            let fee = Nat64.toNat(tr.fee.e8s);
 
-                ignore do ? {
-                    let vid = get_source_vector(tr.from)!;
-                    let v = Map.get<T.DVectorId, T.DVector>(dvectors, Map.n32hash, vid)!;
-                    let fee = Nat64.toNat(tr.fee.e8s);
+                            v.source_balance += amount;
 
-                    v.source_balance -= amount + v.source.ledger_fee;
+                            history.add([v], #source_in({
+                                vid = vid;
+                                amount = amount;
+                                fee = fee;
+                            }))
+                        };
 
-                    // look for a pending transaction and remove it
-                    v.unconfirmed_transactions := Array.filter<T.UnconfirmedTransaction>(
-                        v.unconfirmed_transactions,
-                        func(ut) : Bool {
-                            t.transaction.icrc1_memo != ?ut.memo;
-                        },
-                    );
+                        ignore do ? {
+                            let vid = get_source_vector(tr.from)!;
+                            let v = Map.get<T.DVectorId, T.DVector>(dvectors, Map.n32hash, vid)!;
+                            let fee = Nat64.toNat(tr.fee.e8s);
 
-                    history.add([v], #source_out({
-                        vid = vid;
-                        amount = amount;
-                        fee = fee;
-                    }))
+                            v.source_balance -= amount + v.source.ledger_fee;
 
-                };
+                            // look for a pending transaction and remove it
+                            v.unconfirmed_transactions := Array.filter<T.UnconfirmedTransaction>(
+                                v.unconfirmed_transactions,
+                                func(ut) : Bool {
+                                    t.transaction.icrc1_memo != ?ut.memo;
+                                },
+                            );
 
-                ignore do ? {
-                    let vid = get_destination_vector(tr.to)!;
-                    let v = Map.get<T.DVectorId, T.DVector>(dvectors, Map.n32hash, vid)!;
-                    let fee = Nat64.toNat(tr.fee.e8s);
+                            history.add([v], #source_out({
+                                vid = vid;
+                                amount = amount;
+                                fee = fee;
+                            }))
 
-                    v.destination_balance += amount;
+                        };
 
-                    let vtx_id:?Nat64 = do ? { T.DNat64(Blob.toArray(t.transaction.icrc1_memo!))! };
+                        ignore do ? {
+                            let vid = get_destination_vector(tr.to)!;
+                            let v = Map.get<T.DVectorId, T.DVector>(dvectors, Map.n32hash, vid)!;
+                            let fee = Nat64.toNat(tr.fee.e8s);
 
-                    history.add([v], #destination_in({
-                        vtx_id;
-                        vid = vid;
-                        amount = amount;
-                        fee = fee;
-                    }))
+                            v.destination_balance += amount;
 
-                };
+                            let vtx_id:?Nat64 = do ? { T.DNat64(Blob.toArray(t.transaction.icrc1_memo!))! };
 
-                ignore do ? {
-                    let vid = get_destination_vector(tr.from)!;
-                    let v = Map.get<T.DVectorId, T.DVector>(dvectors, Map.n32hash, vid)!;
-                    let fee = Nat64.toNat(tr.fee.e8s);
+                            history.add([v], #destination_in({
+                                vtx_id;
+                                vid = vid;
+                                amount = amount;
+                                fee = fee;
+                            }))
 
-                    v.destination_balance -= amount + v.destination.ledger_fee;
-                    
-                    v.unconfirmed_transactions := Array.filter<T.UnconfirmedTransaction>(
-                        v.unconfirmed_transactions,
-                        func(ut) : Bool {
-                            t.transaction.icrc1_memo != ?ut.memo;
-                        },
-                    );
+                        };
 
-                    history.add([v], #destination_out({
-                        vid = vid;
-                        amount = amount;
-                        fee = fee;
-                    }))
+                        ignore do ? {
+                            let vid = get_destination_vector(tr.from)!;
+                            let v = Map.get<T.DVectorId, T.DVector>(dvectors, Map.n32hash, vid)!;
+                            let fee = Nat64.toNat(tr.fee.e8s);
+
+                            v.destination_balance -= amount + v.destination.ledger_fee;
+                            
+                            v.unconfirmed_transactions := Array.filter<T.UnconfirmedTransaction>(
+                                v.unconfirmed_transactions,
+                                func(ut) : Bool {
+                                    t.transaction.icrc1_memo != ?ut.memo;
+                                },
+                            );
+
+                            history.add([v], #destination_out({
+                                vid = vid;
+                                amount = amount;
+                                fee = fee;
+                            }))
+                        };
+                    };
+                    case (_) ();
                 };
 
             };
