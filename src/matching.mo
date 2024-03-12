@@ -223,7 +223,7 @@ module {
             };
 
 
-            from.unconfirmed_transactions := Array.append(from.unconfirmed_transactions, [tx]);
+            from.unconfirmed_transactions := Array.append(from.unconfirmed_transactions, [tx]); // Probably best if Map
             
             history.add([from], #withdraw({ vtx_id = tx_id; from = from_id; location; to; amount; fee }));
 

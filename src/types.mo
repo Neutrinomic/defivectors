@@ -92,7 +92,7 @@ module {
         var active : Bool;
         var unconfirmed_transactions : [UnconfirmedTransaction];
         var remote_destination: Bool;
-        history : Vector.Vector<History.TxId>;
+        history : Vector.Vector<History.TxId>; // Has to be SWB and have a limit
     };
 
     public func sumAmountInTransfers(v : DVector, ledger:Principal) : Nat {

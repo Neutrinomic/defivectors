@@ -5,7 +5,7 @@ module {
 
     public class History({
         mem : Vector.Vector<T.History.Tx>
-    }) {
+    }) { // Todo archive older transactions
 
         public func add(vectors: [T.DVector], kind: T.History.TxKind) {
             let tx : T.History.Tx = {
