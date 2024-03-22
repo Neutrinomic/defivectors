@@ -2,7 +2,7 @@
 
 Initially designed to allow Neutrinite DAO to manage its treasury
 
-👷🚧**Under heavy development**🚧👷
+👷🚧**Getting audited**🚧👷
 
 From Neutrinite DAO Roadmap:
 2.9. ‘Swapper’ Protocol for Atomic Token Swapping 
