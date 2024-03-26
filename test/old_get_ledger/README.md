@@ -1,0 +1,1 @@
+Old tests, now only used for the get_latest_wasm.js

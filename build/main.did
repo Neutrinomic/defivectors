@@ -142,6 +142,14 @@ type Metric =
    MetricKey;
    MetricVal;
  };
+type InitArg = 
+ record {
+   DEFI_AGGREGATOR: principal;
+   ICP_ledger_id: principal;
+   LEFT_ledger: principal;
+   NTN_ledger_id: principal;
+   RIGHT_ledger: principal;
+ };
 type HistoryResponse = 
  record {
    entries: vec record {
@@ -249,4 +257,4 @@ type Account =
    owner: principal;
    subaccount: opt blob;
  };
-service : () -> Swap
+service : (InitArg) -> Swap

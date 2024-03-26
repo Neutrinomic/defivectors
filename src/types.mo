@@ -48,9 +48,9 @@ module {
             multiplier : Float;
             multiplier_wiggle : Float;
             multiplier_wiggle_seconds : Float;
-            interval_seconds: Nat32;
-            interval_release_usd: Float;
-            max_tradable_usd: Float;
+            interval_seconds : Nat32;
+            interval_release_usd : Float;
+            max_tradable_usd : Float;
         };
     };
 
@@ -64,19 +64,19 @@ module {
     };
 
     public type DVectorChangeRequest = {
-        id: DVectorId;
+        id : DVectorId;
         algo : Algo;
-        destination: {
+        destination : {
             #unchanged;
-            #set :Ledger.Account;
-            #clear
+            #set : Ledger.Account;
+            #clear;
         };
     };
 
     public type DVector = {
         owner : Principal;
         created : Timestamp;
-        var modified: Timestamp;
+        var modified : Timestamp;
         source : Endpoint;
         var source_balance : Nat;
         var source_balance_available : Nat;
@@ -91,11 +91,11 @@ module {
         var rate : Float;
         var active : Bool;
         var unconfirmed_transactions : [UnconfirmedTransaction];
-        var remote_destination: Bool;
+        var remote_destination : Bool;
         history : Vector.Vector<History.TxId>; // Has to be SWB and have a limit
     };
 
-    public func sumAmountInTransfers(v : DVector, ledger:Principal) : Nat {
+    public func sumAmountInTransfers(v : DVector, ledger : Principal) : Nat {
         var sum : Nat = 0;
         for (v in v.unconfirmed_transactions.vals()) {
             if (v.ledger == ledger) sum := sum + v.amount;
@@ -133,7 +133,7 @@ module {
     public type DVectorShared = {
         owner : Principal;
         created : Timestamp;
-        modified: Timestamp;
+        modified : Timestamp;
         source : Endpoint;
         source_balance : Nat;
         source_balance_available : Nat;
@@ -148,7 +148,7 @@ module {
         rate : Float;
         active : Bool;
         unconfirmed_transactions : [UnconfirmedTransactionShared];
-        remote_destination: Bool;
+        remote_destination : Bool;
         total_events : Nat;
     };
 
@@ -176,14 +176,13 @@ module {
             };
         };
 
-
         public func toSharedNotOwner(history : Vector.Vector<History.Tx>, tr : ?DVector) : ?DVectorShared {
             let ?t = toShared(history, tr) else return null;
             ?{
                 t with
                 algo = null;
             };
-            
+
         };
     };
 
@@ -356,9 +355,16 @@ module {
     };
 
     public func is_valid_account(account : Ledger.Account) : Bool {
-       let ?subaccount = account.subaccount else return true;
-       if (subaccount.size() != 32) return false;
-       return true;
+        let ?subaccount = account.subaccount else return true;
+        if (subaccount.size() != 32) return false;
+        return true;
     };
 
+    public type InitArg = {
+        NTN_ledger_id : Principal;
+        ICP_ledger_id : Principal;
+        LEFT_ledger : Principal;
+        RIGHT_ledger : Principal;
+        DEFI_AGGREGATOR : Principal;
+    };
 };

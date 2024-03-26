@@ -28,7 +28,11 @@ import History "./history";
 import Architect "./architect";
 import Monitor "./monitor";
 
-actor class Swap() = this {
+actor class Swap({NTN_ledger_id;
+        ICP_ledger_id;
+        LEFT_ledger;
+        RIGHT_ledger;
+        DEFI_AGGREGATOR} : T.InitArg) = this {
   type R<A, B> = Result.Result<A, B>;
   type DVectorId = T.DVectorId;
   type Timestamp = T.Timestamp;
@@ -42,13 +46,13 @@ actor class Swap() = this {
   let nhash = Map.n32hash;
 
   let VECTOR_NTN_cost = 4_0000_0000;
-  let NTN_ledger_id = Principal.fromText("f54if-eqaaa-aaaaq-aacea-cai");
-  let ICP_ledger_id = Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai");
+  // let NTN_ledger_id = Principal.fromText("f54if-eqaaa-aaaaq-aacea-cai");
+  // let ICP_ledger_id = Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai");
   let NTN_ledger = actor (Principal.toText(NTN_ledger_id)) : Ledger.Self;
   let ICP_ledger = actor (Principal.toText(ICP_ledger_id)) : IcpLedger.Self;
 
-  let LEFT_ledger = Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai");
-  let RIGHT_ledger = Principal.fromText("mxzaz-hqaaa-aaaar-qaada-cai");
+  // let LEFT_ledger = Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai");
+  // let RIGHT_ledger = Principal.fromText("mxzaz-hqaaa-aaaar-qaada-cai");
 
   // let whitelisted = Principal.fromText("lovjp-a2s3z-lqgmk-epyel-hshnr-ksdzf-abimc-f7dpu-33z4u-2vbkf-uae");
   let gov_canister_id = Principal.fromText("z45mi-3hwqo-bsda6-saeqm-fambt-gp7rn-aynd3-v4oga-dfe24-voedf-mae");
@@ -74,6 +78,7 @@ actor class Swap() = this {
   });
 
   let _rates = Rates.Rates({
+    DEFI_AGGREGATOR;
     whitelisted = [
       // id in defiaggregator config, ledger
       (3, LEFT_ledger), // ICP
@@ -245,6 +250,9 @@ actor class Swap() = this {
     };
 
     // Payment
+
+    // Commented during test to allow free vectors, but it will be present in production
+    /*
     if (caller != gov_canister_id) {
       switch(payment_token) {
         case (#icp) {
@@ -280,8 +288,8 @@ actor class Swap() = this {
         }
       };
 
-   
     };
+    */
 
     let source_ledger = actor (Principal.toText(req.source.ledger)) : Ledger.Self;
     let destination_ledger = actor (Principal.toText(req.destination.ledger)) : Ledger.Self;

@@ -2,14 +2,15 @@ import DA "./services/defiaggregator";
 import Timer "mo:base/Timer";
 import Array "mo:base/Array";
 import Map "mo:map/Map";
+import Principal "mo:base/Principal";
 
 module {
     type Whitelisted = [(Nat, Principal)];
     let phash = Map.phash;
 
-    public class Rates({whitelisted: Whitelisted}) {
+    public class Rates({whitelisted: Whitelisted; DEFI_AGGREGATOR: Principal}) {
         
-        let da = actor("u45jl-liaaa-aaaam-abppa-cai") : DA.Self;
+        let da = actor(Principal.toText(DEFI_AGGREGATOR)) : DA.Self; //"u45jl-liaaa-aaaam-abppa-cai"
         let _rates = Map.new<Principal, Float>();
 
         private func update() : async () {
