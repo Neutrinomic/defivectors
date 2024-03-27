@@ -28,11 +28,13 @@ import History "./history";
 import Architect "./architect";
 import Monitor "./monitor";
 
-actor class Swap({NTN_ledger_id;
+actor class Swap({
+        NTN_ledger_id;
         ICP_ledger_id;
         LEFT_ledger;
         RIGHT_ledger;
-        DEFI_AGGREGATOR} : T.InitArg) = this {
+        DEFI_AGGREGATOR
+        } : T.InitArg) = this {
   type R<A, B> = Result.Result<A, B>;
   type DVectorId = T.DVectorId;
   type Timestamp = T.Timestamp;
@@ -464,6 +466,8 @@ actor class Swap({NTN_ledger_id;
 
   type SnapshotResponse = {
     monitor: [Monitor.Metric];
+    indexed_left: Nat;
+    indexed_right: Nat;
   };
 
   public query func monitor_snapshot() : async SnapshotResponse {

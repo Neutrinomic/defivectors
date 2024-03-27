@@ -6,7 +6,7 @@ import { Principal } from '@dfinity/principal';
 
 const WASM_PATH = resolve(__dirname, "./ledger.wasm");
 
-export async function ICRCLedger(pic: PocketIc, me:Principal, subnet:Principal | undefined) {
+export async function ICRCLedger(pic: PocketIc, me:Principal, subnet:Principal | undefined, transfer_fee: bigint = 10000n) {
    
     let ledger_args:LedgerArg = {
         Init: {
@@ -15,7 +15,7 @@ export async function ICRCLedger(pic: PocketIc, me:Principal, subnet:Principal |
                 subaccount: []
             },
             fee_collector_account: [{ owner: me, subaccount:[] }],
-            transfer_fee: 10000n,
+            transfer_fee,
             decimals: [8],
             token_symbol: "tCOIN",
             token_name: "Test Coin",

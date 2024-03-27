@@ -105,7 +105,12 @@ type Swap =
      }) -> (R);
  };
 type SourceEndpointInput = record {ledger: principal;};
-type SnapshotResponse = record {monitor: vec Metric;};
+type SnapshotResponse = 
+ record {
+   indexed_left: nat;
+   indexed_right: nat;
+   monitor: vec Metric;
+ };
 type R_4 = 
  variant {
    err: text;
