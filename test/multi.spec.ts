@@ -148,7 +148,7 @@ describe('Multi', () => {
 
     it(`Send tokens to vector source addresses`, async () => {
 
-      for (let i=0; i< 100; i++) {
+      for (let i=0; i< 300; i++) {
         let vec = await vector.get_vector(i);
 
         if (vec[0].source.ledger_symbol == "tICP") {
