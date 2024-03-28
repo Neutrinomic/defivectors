@@ -347,10 +347,10 @@
   resolved "https://registry.yarnpkg.com/@dfinity/utils/-/utils-2.1.2.tgz#b286d12f332be73a6cb82ccd0668624795ffaf59"
   integrity sha512-iMbprcyLOQFhrvvb5b51acDvSsnXmMEpGBC/dwFNEDQBMPeX/rB3lm9HUOQf3ga1wOs20pYi4Rh42xVXhvmHdg==
 
-"@hadronous/pic@^0.3.0":
-  version "0.3.0"
-  resolved "https://registry.yarnpkg.com/@hadronous/pic/-/pic-0.3.0.tgz#8c53ae3457336922cbdfc0d0578d3736d82511cd"
-  integrity sha512-PeAJQWmxG3+Cjw9LYxeZwTKJSuOsIb9Tc10OVnDrEDWEQq2LjpKIrWLStyxfcfU3Sb8x6IP5CCMlJ+tUG9VfIw==
+"@hadronous/pic@^0.7.0":
+  version "0.7.0"
+  resolved "https://registry.yarnpkg.com/@hadronous/pic/-/pic-0.7.0.tgz#49b9a480be1df7de85c6a5ce9adbee6a192883d1"
+  integrity sha512-539btzwvSF74RTUQHGfOCoUiRyeV8nlZHnJMFlJC8eWPJ4wJrs/O6od2dvlvQquTJNHmHKARe1E4hnfW5oiBhw==
   dependencies:
     bip39 "^3.1.0"
 

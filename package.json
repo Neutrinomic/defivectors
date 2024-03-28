@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "jest-random-mock": "^1.0.0"
+  }
+}

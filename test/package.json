@@ -1,6 +1,6 @@
 {
   "devDependencies": {
-    "@hadronous/pic": "^0.3.0",
+    "@hadronous/pic": "^0.7.0",
     "@types/jest": "^29.5.12"
   },
   "license": "MIT",
