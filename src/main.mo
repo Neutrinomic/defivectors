@@ -293,8 +293,6 @@ actor class Swap({
     };
     */
 
-    let source_ledger = actor (Principal.toText(req.source.ledger)) : Ledger.Self;
-    let destination_ledger = actor (Principal.toText(req.destination.ledger)) : Ledger.Self;
    
     let pid = _nextDVectorId;
     _nextDVectorId += 1;
@@ -333,11 +331,11 @@ actor class Swap({
       created = T.now();
       var modified = T.now();
       source;
-      var source_balance = await source_ledger.icrc1_balance_of(source.address);
+      var source_balance = 0;
       var source_balance_available = 0;
       var source_balance_tradable = 0;
       var source_balance_tradable_last_update = T.now();
-      var destination_balance = await destination_ledger.icrc1_balance_of(destination.address);
+      var destination_balance = 0;
       var source_rate_usd = 0;
       var destination_rate_usd = 0;
       var destination_balance_available = 0;
