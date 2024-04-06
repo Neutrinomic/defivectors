@@ -193,7 +193,7 @@ actor class Swap({
 
   // Transfer ICP from account using icrc2, trap on error
   private func require_icp_transfer(from : Principal, amount : Nat, reciever : Ledger.Account) : async R<(), Text> {
-    switch (await NTN_ledger.icrc2_transfer_from({ from = { owner = from; subaccount = null }; spender_subaccount = null; to = reciever; fee = null; memo = null; from_subaccount = null; created_at_time = null; amount = amount })) {
+    switch (await ICP_ledger.icrc2_transfer_from({ from = { owner = from; subaccount = null }; spender_subaccount = null; to = reciever; fee = null; memo = null; from_subaccount = null; created_at_time = null; amount = amount })) {
       case (#Ok(_)) #ok();
       case (#Err(e)) #err(debug_show(e));
     };
