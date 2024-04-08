@@ -81,7 +81,7 @@ $$
 
 
 $$
-\text{rate} = \min\left(\text{max}, \text{market\_rate} \times \text{final\_multiplier}\right)
+\text{rate} = \min\left(\text{max}, \text{marketRate} \times \text{finalMultiplier}\right)
 $$
 
 
