@@ -69,14 +69,14 @@ The evaluated rate is equal to the oracle rate multiplied by this parameter. To 
 - `multiplier_wiggle` (Float) and `multiplier_wiggle_seconds` (Float)
 These parameters are optional and allow for dynamic adjustment of the rate through a fluctuation effect. These parameters influence the rate by applying a sine function to the difference between the current timestamp and the timestamp when the vector was created. By doing so, the rate experiences slight increases and decreases, which can facilitate trade matching by ensuring more favorable rates most of the time, yet still allowing for adjustments to accommodate market conditions. Setting both parameters to zero disables this fluctuation effect, resulting in a static rate. This feature is particularly useful for vectors aiming to subtly modify the trade price to enhance the likelihood of trade matches over time.
 $$
-\text{final\_wiggle\_multiplier} = \sin\left(\frac{\text{timestamp\_now} - vector.\text{timestamp\_created}}{6.28} \, / \, \min\left(1, \text{multiplier\_wiggle\_seconds}\right)\right) \times \text{multiplier\_wiggle}
+\text{finalWiggleMultiplier} = \sin\left(\frac{\text{timestampNow} - vector.\text{timestampCreated}}{6.28} \, / \, \min\left(1, \text{multiplierWiggleSeconds}\right)\right) \times \text{multiplierWiggle}
 $$
 
 
 - Trade `rate` is calculated with the following formula
 
 $$
-\text{final\_multiplier} = \text{final\_wiggle\_multiplier} + \text{multiplier}
+\text{finalMultiplier} = \text{finalWiggleMultiplier} + \text{multiplier}
 $$
 
 
@@ -101,7 +101,7 @@ $$
 
 
     $$
-    \text{new\_tradable\_balance} = \min\left(\text{current\_source\_balance}, \min\left(\text{tradable\_balance} + \frac{\text{interval\_release\_usd}}{\text{rate}}, \frac{\text{max\_tradable\_usd}}{\text{rate}}\right)\right)
+    \text{newTradableBalance} = \min\left(\text{currentSourceBalance}, \min\left(\text{tradableBalance} + \frac{\text{intervalReleaseUsd}}{\text{rate}}, \frac{\text{maxTradableUsd}}{\text{rate}}\right)\right)
     $$
 
     Furthermore, to prevent the initiation of numerous low-value trades where transaction fees could become disproportionately high, the vector automatically deactivates and halts trading activities if the tradable balance falls below a threshold of 300 times the ledger transaction fee. This measure ensures efficient and cost-effective trading operations.
