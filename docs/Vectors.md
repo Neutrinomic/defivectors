@@ -68,6 +68,7 @@ The evaluated rate is equal to the oracle rate multiplied by this parameter. To 
 
 - `multiplier_wiggle` (Float) and `multiplier_wiggle_seconds` (Float)
 These parameters are optional and allow for dynamic adjustment of the rate through a fluctuation effect. These parameters influence the rate by applying a sine function to the difference between the current timestamp and the timestamp when the vector was created. By doing so, the rate experiences slight increases and decreases, which can facilitate trade matching by ensuring more favorable rates most of the time, yet still allowing for adjustments to accommodate market conditions. Setting both parameters to zero disables this fluctuation effect, resulting in a static rate. This feature is particularly useful for vectors aiming to subtly modify the trade price to enhance the likelihood of trade matches over time.
+
 $$
 \text{finalWiggleMultiplier} = \sin\left(\frac{\text{timestampNow} - vector.\text{timestampCreated}}{6.28} \, / \, \min\left(1, \text{multiplierWiggleSeconds}\right)\right) \times \text{multiplierWiggle}
 $$
