@@ -101,9 +101,9 @@ $$
 
 
 
-    $$
-    \text{newTradableBalance} = \min\left(\text{currentSourceBalance}, \min\left(\text{tradableBalance} + \frac{\text{intervalReleaseUsd}}{\text{rate}}, \frac{\text{maxTradableUsd}}{\text{rate}}\right)\right)
-    $$
+$$
+\text{newTradableBalance} = \min\left(\text{currentSourceBalance}, \min\left(\text{tradableBalance} + \frac{\text{intervalReleaseUsd}}{\text{rate}}, \frac{\text{maxTradableUsd}}{\text{rate}}\right)\right)
+$$
 
     Furthermore, to prevent the initiation of numerous low-value trades where transaction fees could become disproportionately high, the vector automatically deactivates and halts trading activities if the tradable balance falls below a threshold of 300 times the ledger transaction fee. This measure ensures efficient and cost-effective trading operations.
 
