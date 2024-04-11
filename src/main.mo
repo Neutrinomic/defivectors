@@ -456,11 +456,6 @@ actor class Swap({
     Vector.toArray(_errlog);
   };
 
-  // public func index_pause(paused : Bool) : async () {
-  //   // TODO: security remove
-  //   _indexer_right_mem.paused := paused;
-  //   _indexer_left_mem.paused := paused;
-  // };
 
   type SnapshotResponse = {
     monitor: [Monitor.Metric];
