@@ -43,7 +43,6 @@ module {
                     
                         let ledger = actor(Principal.toText(tx.ledger)) : Ledger.Oneway;
 
-                        // Retry every 30 seconds
                         let time_for_try = Float.toInt(Float.ceil((Float.fromInt(Nat32.toNat(now - tx.timestamp)))/RETRY_EVERY_SEC));
 
                         if (tx.tries >= time_for_try) continue vtransactions;
