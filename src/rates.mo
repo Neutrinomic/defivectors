@@ -35,7 +35,9 @@ module {
         };
         
         public func get_rate(ledger: Principal) : ?Float {
-            Map.get<Principal, Float>(_rates, phash, ledger);
+            let ?rate = Map.get<Principal, Float>(_rates, phash, ledger) else return null;
+            if (rate == 0) return null; // Make sure we don't return 0
+            ?rate;
         };
 
 
