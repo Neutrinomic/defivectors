@@ -69,7 +69,6 @@ module {
                             };
                             v.source_balance_tradable := Nat.min(v.source_balance_tradable, v.source_balance_available);
                             apply_active_rules(v);
-                            // v.active := v.source_balance_tradable > v.source.ledger_fee * 300; //Rule: One of the ledgers must not have a fee higher than 300 times the other ledger fee
                         };
                     };
 
