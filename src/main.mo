@@ -431,9 +431,10 @@ actor class Swap({
 
     let ?vector = Map.get(_dvectors, nhash, id) else return #err("vector not found");
     if (caller != vector.owner) return #err("caller is not the owner");
+    if (vector.unconfirmed_transactions.size() > 10) return #err("too many unconfirmed transactions");
     switch (location) {
       case (#source) {
-          if (amount <= vector.source.ledger_fee * 10) return #err("amount is too low");
+          if (amount <= vector.source.ledger_fee * 100) return #err("amount is too low");
       };
       case (#destination) {
           // Double check if the destination is the destination of this vector
@@ -445,7 +446,7 @@ actor class Swap({
           } : Ledger.Account;
           
           if (vector.remote_destination or vector_destination != vector.destination.address) return #err("destination is the source of another vector or remote");
-          if (amount <= vector.destination.ledger_fee * 10) return #err("amount is too low");
+          if (amount <= vector.destination.ledger_fee * 100) return #err("amount is too low");
       };
     };
 
