@@ -11,6 +11,7 @@ import History "../history";
 import Blob "mo:base/Blob";
 import Monitor "../monitor";
 import Prim "mo:⛔";
+import ErrLog "../errlog";
 
 module {
 
@@ -22,7 +23,7 @@ module {
     };
 
     public class Indexer({
-        errlog : Vector.Vector<Text>;
+        errlog : ErrLog.ErrLog;
         mem : Mem;
         ledger_id : Principal;
         dvectors : Map.Map<T.DVectorId, T.DVector>;
@@ -230,7 +231,7 @@ module {
             try {
                 await proc();
             } catch (e) {
-                Vector.add(errlog, "indexers:icp:" # Principal.toText(ledger_id) # ":" # Error.message(e));
+                errlog.add("indexers:icp:" # Principal.toText(ledger_id) # ":" # Error.message(e));
             };
 
             ignore Timer.setTimer(#seconds 2, qtimer);

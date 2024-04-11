@@ -13,6 +13,7 @@ import Float "mo:base/Float";
 import Debug "mo:base/Debug";
 import Vector "mo:vector";
 import Nat "mo:base/Nat";
+import SWB "mo:swbstable/Stable";
 
 module {
 
@@ -92,7 +93,7 @@ module {
         var active : Bool;
         var unconfirmed_transactions : [UnconfirmedTransaction];
         var remote_destination : Bool;
-        history : Vector.Vector<History.TxId>; // Has to be SWB and have a limit
+        history : SWB.StableData<History.TxId>; // Has to be SWB and have a limit
     };
 
     public func sumAmountInTransfers(v : DVector, ledger : Principal) : Nat {
@@ -153,8 +154,9 @@ module {
     };
 
     public module DVector {
-        public func toShared(history : Vector.Vector<History.Tx>, tr : ?DVector) : ?DVectorShared {
+        public func toShared(history : SWB.SlidingWindowBuffer<History.Tx>, tr : ?DVector) : ?DVectorShared {
             let ?t = tr else return null;
+            let history_cls = SWB.SlidingWindowBuffer<History.TxId>(t.history);
             ?{
                 t with
                 modified = t.modified;
@@ -171,12 +173,12 @@ module {
                 destination_balance_available = t.destination_balance_available;
                 source_rate_usd = t.source_rate_usd;
                 destination_rate_usd = t.destination_rate_usd;
-                total_events = Vector.size(t.history);
+                total_events = history_cls.end();
                 remote_destination = t.remote_destination;
             };
         };
 
-        public func toSharedNotOwner(history : Vector.Vector<History.Tx>, tr : ?DVector) : ?DVectorShared {
+        public func toSharedNotOwner(history : SWB.SlidingWindowBuffer<History.Tx>, tr : ?DVector) : ?DVectorShared {
             let ?t = toShared(history, tr) else return null;
             ?{
                 t with
@@ -237,13 +239,13 @@ module {
             };
         };
 
-        public func getVectorHistory(history : Vector.Vector<History.Tx>, vec_history : Vector.Vector<TxId>, start : Nat, len : Nat) : [(History.TxId, History.Tx)] {
+        public func getVectorHistory(history : SWB.SlidingWindowBuffer<History.Tx>, vec_history : Vector.Vector<TxId>, start : Nat, len : Nat) : [(History.TxId, ?History.Tx)] {
 
-            Array.tabulate<(History.TxId, History.Tx)>(
+            Array.tabulate<(History.TxId, ?History.Tx)>(
                 len,
                 func(i) {
                     let id = Vector.get(vec_history, start + i);
-                    let tx = Vector.get(history, id);
+                    let tx = history.getOpt(id);
                     (id, tx);
                 },
             );
@@ -251,7 +253,7 @@ module {
 
         public type HistoryResponse = {
             total : Nat;
-            entries : [(TxId, Tx)];
+            entries : [(?TxId, ?Tx)];
         };
     };
 

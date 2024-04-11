@@ -18,6 +18,8 @@ import History "./history";
 import Nat32 "mo:base/Nat32";
 import Int "mo:base/Int";
 import Monitor "./monitor";
+import SWB "mo:swbstable/Stable";
+import ErrLog "./errlog";
 
 module {
 
@@ -30,7 +32,7 @@ module {
 
     public class Matching({
         mem : MatchingMem;
-        errlog : Vector.Vector<Text>;
+        errlog : ErrLog.ErrLog;
         rates : Rates.Rates;
         dvectors : Map.Map<K, V>;
         history : History.History;
@@ -83,7 +85,7 @@ module {
             try {
                 await settle();
             } catch (e) {
-                Vector.add(errlog, "matching:settle:" # Error.message(e));
+                errlog.add("matching:settle:" # Error.message(e));
             };
             ignore Timer.setTimer(#seconds 2, tick);
         };

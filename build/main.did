@@ -95,7 +95,7 @@ type Swap =
    get_vector_price: () -> (R_2) query;
    modify_vector: (DVectorChangeRequest) -> (R_1);
    monitor_snapshot: () -> (SnapshotResponse) query;
-   show_log: () -> (vec text) query;
+   show_log: () -> (vec opt text) query;
    withdraw_vector:
     (record {
        amount: nat;
@@ -158,8 +158,8 @@ type InitArg =
 type HistoryResponse = 
  record {
    entries: vec record {
-                  TxId;
-                  Tx;
+                  opt TxId;
+                  opt Tx;
                 };
    total: nat;
  };

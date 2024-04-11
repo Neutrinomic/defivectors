@@ -245,7 +245,7 @@ describe('Basic', () => {
       // console.log(JSON.stringify(toState(e1), null, 2));
 
       expect(e1.ok.total).toBe(73n);
-      expect(e1.ok.entries[0][1].kind.source_in.amount).toBe(100000000000n);
+      expect(e1.ok.entries[0][1][0].kind.source_in.amount).toBe(100000000000n);
     });
 
     afterAll(async () => {

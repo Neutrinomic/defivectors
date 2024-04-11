@@ -27,6 +27,8 @@ import Sender "./sender";
 import History "./history";
 import Architect "./architect";
 import Monitor "./monitor";
+import SWB "mo:swbstable/Stable";
+import ErrLog "./errlog";
 
 actor class Swap({
         NTN_ledger_id;
@@ -65,15 +67,19 @@ actor class Swap({
     architects = Map.new<Principal, Vector.Vector<T.DVectorId>>();
   };
 
-  stable let _history_mem = Vector.new<T.History.Tx>();
-
+  stable let _history_mem = SWB.SlidingWindowBufferNewMem<T.History.Tx>();
+  let _history_cls = SWB.SlidingWindowBuffer<T.History.Tx>(_history_mem);
   let _monitor = Monitor.Monitor();
 
   let _history = History.History({
-    mem = _history_mem;
+    mem = _history_cls;
   });
 
-  let _errlog = Vector.new<Text>();
+  stable let _errlog_mem = SWB.SlidingWindowBufferNewMem<Text>();
+  let _errlog_cls = SWB.SlidingWindowBuffer<Text>(_errlog_mem);
+  let _errlog = ErrLog.ErrLog({
+    mem = _errlog_cls;
+  });
 
   let _ledgermeta = LedgerMeta.LedgerMeta({
     ledgers = [LEFT_ledger, RIGHT_ledger];
@@ -158,7 +164,7 @@ actor class Swap({
   let _architects = Architect.Architect({
     mem = _architects_mem;
     dvectors = _dvectors;
-    history_mem = _history_mem;
+    history_mem = _history_cls;
   });
 
 
@@ -341,7 +347,7 @@ actor class Swap({
       var destination_balance_available = 0;
       var destination = destination;
       var unconfirmed_transactions = [];
-      history = Vector.new<T.History.TxId>();
+      history = SWB.SlidingWindowBufferNewMem<T.History.TxId>();
       var remote_destination = req.destination.address != null
     };
 
@@ -354,7 +360,7 @@ actor class Swap({
   };
 
   public query func get_vector(pid : DVectorId) : async ?DVectorShared {
-    T.DVector.toShared(_history_mem, Map.get(_dvectors, nhash, pid));
+    T.DVector.toShared(_history_cls, Map.get(_dvectors, nhash, pid));
   };
 
   public query({caller}) func get_architect_vectors({
@@ -378,15 +384,15 @@ actor class Swap({
   };
 
   public query func get_events({ start : Nat; length : Nat }) : async R<T.History.HistoryResponse, Text> {
-    let total = Vector.size(_history_mem);
+    let total = _history_cls.end();
     let real_len = Nat.min(length, if (start > total) 0 else total - start);
 
-    let entries = Array.tabulate<(T.History.TxId, T.History.Tx)>(
+    let entries = Array.tabulate<(?T.History.TxId, ?T.History.Tx)>(
       real_len,
       func(i) {
         let id = start + i;
-        let tx = Vector.get(_history_mem, id);
-        (id, tx);
+        let tx = _history_cls.getOpt(id);
+        (?id, tx);
       },
     );
     #ok {
@@ -402,17 +408,18 @@ actor class Swap({
   }) : async R<T.History.HistoryResponse, Text> {
     let ?vector = Map.get(_dvectors, nhash, id) else return #err("vector not found");
 
-    let total = Vector.size(vector.history);
+    let history_cls = SWB.SlidingWindowBuffer<T.History.TxId>(vector.history);
+    let total = history_cls.end();
 
     let real_len = Nat.min(length, if (start >= total) 0 else total - start); 
 
-    let entries = Array.tabulate<(T.History.TxId, T.History.Tx)>(
+    let entries = Array.tabulate<(?T.History.TxId, ?T.History.Tx)>(
       real_len,
       func(i) {
         let lid = start + i;
-        let id = Vector.get(vector.history, lid);
-        let tx = Vector.get(_history_mem, id);
-        (id, tx);
+        let ?id = history_cls.getOpt(lid) else return (null, null);
+        let tx = _history_cls.getOpt(id);
+        (?id, tx);
       },
     );
 
@@ -453,8 +460,15 @@ actor class Swap({
     #ok(_matching.make_withdraw_transaction(id, vector, amount, to, location));
   };
 
-  public query func show_log() : async [Text] {
-    Vector.toArray(_errlog);
+  public query func show_log() : async [?Text] {
+    let start = _errlog_cls.start();
+    let end = _errlog_cls.end();
+    Array.tabulate(
+        _errlog_cls.len(),
+        func(i : Nat) : ?Text {
+            _errlog_cls.getOpt(start + i);
+        },
+    );
   };
 
 

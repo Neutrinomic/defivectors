@@ -4,6 +4,7 @@ import Map "mo:map/Map";
 import Nat "mo:base/Nat";
 import Array "mo:base/Array";
 import Debug "mo:base/Debug";
+import SWB "mo:swbstable/Stable";
 
 module {
     public type ArchMem = {
@@ -13,7 +14,7 @@ module {
     public class Architect({
         mem: ArchMem;
         dvectors : Map.Map<T.DVectorId, T.DVector>;
-        history_mem : Vector.Vector<T.History.Tx>;
+        history_mem : SWB.SlidingWindowBuffer<T.History.Tx>;
     }) {
 
         public func add_vector(arch_id: Principal, vector_id: T.DVectorId) : () {

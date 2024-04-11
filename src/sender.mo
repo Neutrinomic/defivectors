@@ -19,6 +19,7 @@ import Nat32 "mo:base/Nat32";
 import History "./history";
 import Monitor "./monitor";
 import Prim "mo:⛔";
+import ErrLog "./errlog";
 
 module {
 
@@ -26,7 +27,7 @@ module {
     let MAX_SENT_EACH_CYCLE:Nat = 125;
 
     public class Sender({
-        errlog : Vector.Vector<Text>;
+        errlog : ErrLog.ErrLog;
         dvectors : Map.Map<T.DVectorId, T.DVector>;
         history : History.History;
         monitor : Monitor.Monitor;
@@ -62,7 +63,7 @@ module {
                             sent_count += 1;
                         } catch (e) { // It may reach oneway transaction limit
                             error := true;
-                            Vector.add(errlog, "sender:" # Principal.toText(tx.ledger) # ":" # Error.message(e));
+                            errlog.add("sender:" # Principal.toText(tx.ledger) # ":" # Error.message(e));
                             break sending;
                         };
 

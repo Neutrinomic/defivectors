@@ -12,6 +12,7 @@ import Blob "mo:base/Blob";
 import Monitor "../monitor";
 import Prim "mo:⛔";
 import Option "mo:base/Option";
+import ErrLog "../errlog";
 
 module {
 
@@ -41,7 +42,7 @@ module {
     let ahash = (ahash_hash, ahash_equal);
 
     public class Indexer({
-        errlog : Vector.Vector<Text>;
+        errlog : ErrLog.ErrLog;
         mem : Mem;
         ledger_id : Principal;
         dvectors : Map.Map<T.DVectorId, T.DVector>;
@@ -234,7 +235,7 @@ module {
             try {
                 await proc();
             } catch (e) {
-                Vector.add(errlog, "indexers:icrc:" # Principal.toText(ledger_id) # ":" # Error.message(e));
+                errlog.add("indexers:icrc:" # Principal.toText(ledger_id) # ":" # Error.message(e));
             };
 
             ignore Timer.setTimer(#seconds 2, qtimer);
