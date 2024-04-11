@@ -18,6 +18,13 @@ type UnconfirmedTransactionShared =
  };
 type TxKind = 
  variant {
+   create_vector:
+    record {
+      destination_ledger: principal;
+      owner: principal;
+      source_ledger: principal;
+      vid: DVectorId;
+    };
    destination_in:
     record {
       amount: nat;

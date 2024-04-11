@@ -355,6 +355,7 @@ actor class Swap({
     _architects.add_vector(caller, pid);
     _indexer_left.register_vector(pid, dvector);
     _indexer_right.register_vector(pid, dvector);
+    _history.add([], #create_vector({ vid = pid; owner = caller; source_ledger = req.source.ledger; destination_ledger = req.destination.ledger; }));
 
     #ok pid;
   };

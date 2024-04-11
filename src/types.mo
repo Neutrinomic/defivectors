@@ -195,6 +195,12 @@ module {
             timestamp : Timestamp;
         };
         public type TxKind = {
+            #create_vector : {
+                vid : DVectorId;
+                owner: Principal;
+                source_ledger: Principal;
+                destination_ledger: Principal;
+            };
             #source_in : {
                 vid : DVectorId;
                 amount : Nat;
