@@ -46,7 +46,7 @@ module {
                     mv;
                   };
                   case (false) {
-                    let ?mv = T.DVector.toSharedNotOwner(history_mem, ?v) else Debug.trap("Memory corruption FJ3FD");
+                    let ?mv = T.DVector.toSharedNotOwner(history_mem, ?v) else Debug.trap("Memory corruption FJZXC");
                     mv;
                   }
                 }; 
