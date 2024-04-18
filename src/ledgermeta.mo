@@ -13,11 +13,16 @@ module {
         var fetchidx = 0;
 
         public func fetch() : async () {
-            let m = await T.ledgerMeta(ledgers[fetchidx]);
-            Map.set<Principal, T.LedgerMeta>(_meta, phash, ledgers[fetchidx], m);
-            fetchidx += 1;
-            if (fetchidx < ledgers.size()) {
-                ignore Timer.setTimer(#seconds 0, fetch);
+            try {
+                let m = await T.ledgerMeta(ledgers[fetchidx]);
+                Map.set<Principal, T.LedgerMeta>(_meta, phash, ledgers[fetchidx], m);
+                fetchidx += 1;
+                if (fetchidx < ledgers.size()) {
+                    ignore Timer.setTimer(#seconds 0, fetch);
+                }
+            } catch (e) {
+                // retry
+                ignore Timer.setTimer(#seconds 2, fetch);
             }
         };
 
