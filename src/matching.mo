@@ -65,7 +65,6 @@ module {
                                 let tokens_to_add = T.natAmount(algo.interval_release_usd / rate_source, v.source.ledger_decimals);
                                 let tokens_max_tradable = T.natAmount(algo.max_tradable_usd / rate_source, v.source.ledger_decimals);
                                 v.source_balance_tradable := Nat.min(v.source_balance_available, Nat.min(v.source_balance_tradable + tokens_to_add, tokens_max_tradable));
-                                assert (v.source_balance_tradable <= v.source_balance_available);
                             };
                             v.source_balance_tradable := Nat.min(v.source_balance_tradable, v.source_balance_available);
                             apply_active_rules(v);
@@ -77,6 +76,11 @@ module {
         };
 
         private func apply_active_rules(v : T.DVector) : () {
+            if (v.source_balance_tradable <= v.source_balance_available) {
+                v.active := false;
+                return;
+            };
+            
             v.active := v.source_balance_tradable > v.source.ledger_fee * 300; //Rule: One of the ledgers must not have a fee higher than 300 times the other ledger fee
         };
 
