@@ -54,7 +54,7 @@ actor class Swap({
   let NTN_ledger = actor (Principal.toText(NTN_ledger_id)) : Ledger.Self;
   let ICP_ledger = actor (Principal.toText(ICP_ledger_id)) : IcpLedger.Self;
 
-  let gov_canister_id = Principal.fromText("eqsml-lyaaa-aaaaq-aacdq-cai");
+  let gov_canister_id = Principal.fromText("eqsml-lyaaa-aaaaq-aacdq-cai"); // Neutrinite DAO
 
   stable let _dvectors = Map.new<DVectorId, DVector>();
   stable var _nextDVectorId : DVectorId = 0;
