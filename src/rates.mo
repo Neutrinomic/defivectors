@@ -10,7 +10,7 @@ module {
 
     public class Rates({whitelisted: Whitelisted; DEFI_AGGREGATOR: Principal}) {
         
-        let da = actor(Principal.toText(DEFI_AGGREGATOR)) : DA.Self; //"u45jl-liaaa-aaaam-abppa-cai"
+        let da = actor(Principal.toText(DEFI_AGGREGATOR)) : DA.Self;
         let _rates = Map.new<Principal, Float>();
 
         private func update() : async () {

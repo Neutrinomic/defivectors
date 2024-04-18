@@ -50,16 +50,11 @@ actor class Swap({
   let nhash = Map.n32hash;
 
   let VECTOR_NTN_cost = 4_0000_0000;
-  // let NTN_ledger_id = Principal.fromText("f54if-eqaaa-aaaaq-aacea-cai");
-  // let ICP_ledger_id = Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai");
+  
   let NTN_ledger = actor (Principal.toText(NTN_ledger_id)) : Ledger.Self;
   let ICP_ledger = actor (Principal.toText(ICP_ledger_id)) : IcpLedger.Self;
 
-  // let LEFT_ledger = Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai");
-  // let RIGHT_ledger = Principal.fromText("mxzaz-hqaaa-aaaar-qaada-cai");
-
-  // let whitelisted = Principal.fromText("lovjp-a2s3z-lqgmk-epyel-hshnr-ksdzf-abimc-f7dpu-33z4u-2vbkf-uae");
-  let gov_canister_id = Principal.fromText("z45mi-3hwqo-bsda6-saeqm-fambt-gp7rn-aynd3-v4oga-dfe24-voedf-mae");
+  let gov_canister_id = Principal.fromText("eqsml-lyaaa-aaaaq-aacdq-cai");
 
   stable let _dvectors = Map.new<DVectorId, DVector>();
   stable var _nextDVectorId : DVectorId = 0;
@@ -436,6 +431,8 @@ actor class Swap({
     amount : Nat;
     location : T.VLocation;
   }) : async R<Nat64, Text> {
+
+    if (not T.is_valid_account(to)) return #err("To address is not valid");
 
     let ?vector = Map.get(_dvectors, nhash, id) else return #err("vector not found");
     if (caller != vector.owner) return #err("caller is not the owner");
