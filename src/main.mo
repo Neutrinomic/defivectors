@@ -8,7 +8,6 @@ import T "./types";
 import Result "mo:base/Result";
 import Blob "mo:base/Blob";
 import Debug "mo:base/Debug";
-import XRC "./services/xrc";
 import Cycles "mo:base/ExperimentalCycles";
 import Float "mo:base/Float";
 import Nat64 "mo:base/Nat64";
