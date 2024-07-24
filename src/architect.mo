@@ -4,7 +4,6 @@ import Map "mo:map/Map";
 import Nat "mo:base/Nat";
 import Array "mo:base/Array";
 import Debug "mo:base/Debug";
-import SWB "mo:swbstable/Stable";
 
 module {
     public type ArchMem = {

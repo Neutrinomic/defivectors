@@ -1,5 +1,4 @@
 import Timer "mo:base/Timer";
-import Array "mo:base/Array";
 import Map "mo:map/Map";
 import T "./types";
 

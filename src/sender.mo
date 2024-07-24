@@ -1,19 +1,13 @@
 import Map "mo:map/Map";
 import T "./types";
-import Iter "mo:base/Iter";
-import Order "mo:base/Order";
-import Option "mo:base/Option";
-import Debug "mo:base/Debug";
+
 import Nat "mo:base/Nat";
 import Float "mo:base/Float";
 import Ledger "./services/icrc_ledger";
 import Principal "mo:base/Principal";
-import Vector "mo:vector";
-import Rates "./rates";
+
 import Timer "mo:base/Timer";
-import Array "mo:base/Array";
 import Error "mo:base/Error";
-import Blob "mo:base/Blob";
 import Nat64 "mo:base/Nat64";
 import Nat32 "mo:base/Nat32";
 import History "./history";
