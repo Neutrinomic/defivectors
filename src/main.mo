@@ -22,6 +22,9 @@ import Architect "./architect";
 import Monitor "./monitor";
 import SWB "mo:swbstable/Stable";
 import ErrLog "./errlog";
+import Rechain "mo:rechain";
+import RechainT "./rechain_types";
+import Timer "mo:base/Timer";
 
 actor class Swap({
         NTN_ledger_id;
@@ -53,6 +56,16 @@ actor class Swap({
   let gov_canister_treasury = "\61\47\4b\07\1a\86\0b\27\95\75\c9\54\ce\5f\35\98\f4\f8\63\f8\c6\f4\50\86\0c\d3\c3\11\43\16\ef\2d":Blob;
   let dev_id = Principal.fromText("aojy2-p2wmt-4pvbt-rslzv-2clzy-n7t2s-7u7dd-xw6op-zk6kx-vv5ju-lae"); // Developers
 
+  // Rechain
+
+  stable let chain_mem  = Rechain.Mem();
+  var rechain = Rechain.Chain<T.History.Tx, RechainT.ActionError>({
+      settings = ?{Rechain.DEFAULT_SETTINGS with supportedBlocks = []};
+      mem = chain_mem;
+      encodeBlock = RechainT.encodeBlock;
+      reducers = [];
+  });
+
   stable let _dvectors = Map.new<DVectorId, DVector>();
   stable var _nextDVectorId : DVectorId = 0;
   stable let _architects_mem : Architect.ArchMem = {
@@ -65,6 +78,7 @@ actor class Swap({
 
   let _history = History.History({
     mem = _history_cls;
+    rechain;
   });
 
   stable let _errlog_mem = SWB.SlidingWindowBufferNewMem<Text>();
@@ -166,7 +180,14 @@ actor class Swap({
   _ledgermeta.start_timer<system>();
   _rates.start_timer<system>();
   _matching.start_timer<system>();
-
+  // Rechain timers
+  ignore Timer.setTimer<system>(#seconds 0, func () : async () {
+      await rechain.start_archiving<system>();
+  });
+  // Autoupgrade every time this canister is upgraded
+  ignore Timer.setTimer<system>(#seconds 1, func () : async () {
+      await rechain.upgrade_archives();
+  });
   // ---
 
   // Transfer NTN from account using icrc2, trap on error
@@ -464,6 +485,25 @@ actor class Swap({
       indexed_left = _indexer_left_mem.last_indexed_tx;
       indexed_right = _indexer_right_mem.last_indexed_tx;
     }
-  }
+  };
+
+    public query func icrc3_get_blocks(args: Rechain.GetBlocksArgs): async Rechain.GetBlocksResult {
+        return rechain.get_blocks(args);
+    };
+
+    public query func icrc3_get_archives(args: Rechain.GetArchivesArgs): async Rechain.GetArchivesResult {
+        return rechain.get_archives(args);
+    };
+
+    public query func icrc3_supported_block_types(): async [Rechain.BlockType] {
+        return rechain.icrc3_supported_block_types();
+    };
+
+    public func set_ledger_canister(): async () {
+        chain_mem.canister := ?Principal.fromActor(this);
+    };
+
+
+
 
 };

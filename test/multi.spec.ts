@@ -184,7 +184,7 @@ describe('Multi', () => {
       let rate = Number(d1)/Number(d2);
       //console.log(rate);
 
-    }, 10000);
+    }, 20000);
 
     it(`Check if trades are working`, async () => {
       

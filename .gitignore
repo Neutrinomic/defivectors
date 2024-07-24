@@ -1,2 +1,3 @@
 build/
+build/main.wasm
 node_modules/

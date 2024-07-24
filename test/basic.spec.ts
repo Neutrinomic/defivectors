@@ -258,6 +258,20 @@ describe('Basic', () => {
     });
   
 
+    it("Check if ICRC-3 Log works", async () => {
+      let ve = await vector.get_events({start:0n, length:900n});
+
+      let rez = await vector.icrc3_get_blocks([{
+        start: 0n,
+        length: 900n
+      }]);
+
+      expect(ve.ok.total).toBe(148n);
+      expect(rez.log_length).toBe(148n);
+
+      expect(toState(rez)).toMatchSnapshot();
+    });
+
     async function passTime(n:number) {
       for (let i=0; i<n; i++) {
         await pic.advanceTime(3*1000);
