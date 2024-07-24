@@ -49,10 +49,10 @@ type TxKind =
                };
    swap:
     record {
-      amount: nat;
+      amountIn: nat;
+      amountOut: nat;
       fee: nat;
       from: DVectorId;
-      rate: float64;
       to: DVectorId;
       vtx_id: nat64;
     };
@@ -158,8 +158,10 @@ type InitArg =
  record {
    DEFI_AGGREGATOR: principal;
    ICP_ledger_id: principal;
+   LEFT_aggr_id: nat;
    LEFT_ledger: principal;
    NTN_ledger_id: principal;
+   RIGHT_aggr_id: nat;
    RIGHT_ledger: principal;
  };
 type HistoryResponse = 

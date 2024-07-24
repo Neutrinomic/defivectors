@@ -1,5 +1,14 @@
 {
-  "daoswp": {
+  "icpckbtc": {
     "ic": "xgnzu-riaaa-aaaal-qc64a-cai"
+  },
+  "icpcketh": {
+    "ic": "p3vxz-aqaaa-aaaal-qjeza-cai"
+  },
+  "icpckusdc": {
+    "ic": "n5nfu-jaaaa-aaaal-qjeua-cai"
+  },
+  "icpntn": {
+    "ic": "jioej-yaaaa-aaaal-qjdrq-cai"
   }
 }

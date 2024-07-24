@@ -7,16 +7,10 @@ import Map "mo:map/Map";
 import T "./types";
 import Result "mo:base/Result";
 import Blob "mo:base/Blob";
-import Debug "mo:base/Debug";
-import Cycles "mo:base/ExperimentalCycles";
-import Float "mo:base/Float";
 import Nat64 "mo:base/Nat64";
-import Nat32 "mo:base/Nat32";
-import Int "mo:base/Int";
 import Option "mo:base/Option";
 import Vector "mo:vector";
 import Nat "mo:base/Nat";
-import Timer "mo:base/Timer";
 import Rates "./rates";
 import LedgerMeta "./ledgermeta";
 import Matching "./matching";
@@ -34,7 +28,9 @@ actor class Swap({
         ICP_ledger_id;
         LEFT_ledger;
         RIGHT_ledger;
-        DEFI_AGGREGATOR
+        DEFI_AGGREGATOR;
+        LEFT_aggr_id;
+        RIGHT_aggr_id;
         } : T.InitArg) = this {
   type R<A, B> = Result.Result<A, B>;
   type DVectorId = T.DVectorId;
@@ -54,6 +50,8 @@ actor class Swap({
   let ICP_ledger = actor (Principal.toText(ICP_ledger_id)) : IcpLedger.Self;
 
   let gov_canister_id = Principal.fromText("eqsml-lyaaa-aaaaq-aacdq-cai"); // Neutrinite DAO
+  let gov_canister_treasury = "\61\47\4b\07\1a\86\0b\27\95\75\c9\54\ce\5f\35\98\f4\f8\63\f8\c6\f4\50\86\0c\d3\c3\11\43\16\ef\2d":Blob;
+  let dev_id = Principal.fromText("aojy2-p2wmt-4pvbt-rslzv-2clzy-n7t2s-7u7dd-xw6op-zk6kx-vv5ju-lae"); // Developers
 
   stable let _dvectors = Map.new<DVectorId, DVector>();
   stable var _nextDVectorId : DVectorId = 0;
@@ -83,8 +81,8 @@ actor class Swap({
     DEFI_AGGREGATOR;
     whitelisted = [
       // id in defiaggregator config, ledger
-      (3, LEFT_ledger), // ICP
-      (1, RIGHT_ledger), // BTC
+      (LEFT_aggr_id, LEFT_ledger), // ICP
+      (RIGHT_aggr_id, RIGHT_ledger), // BTC
       (30, NTN_ledger_id) // NTN
     ];
   });
@@ -158,28 +156,16 @@ actor class Swap({
   let _architects = Architect.Architect({
     mem = _architects_mem;
     dvectors = _dvectors;
-    history_mem = _history_cls;
   });
 
 
   // --- Start timers
-  var timer_to_start = 0;
-  let timers :[() -> ()] = [
-      func () { _sender.start_timer() },
-      func () { _indexer_right.start_timer() },
-      func () { _indexer_left.start_timer() },
-      func () { _ledgermeta.start_timer() },
-      func () { _rates.start_timer() },
-      func () { _matching.start_timer() },
-  ];
-
-  private func start_timers() : async () {
-      timers[timer_to_start]();
-      timer_to_start += 1;
-      if (timer_to_start < timers.size()) ignore Timer.setTimer( #seconds 1, start_timers );
-  };
-
-  ignore Timer.setTimer( #seconds 1, start_timers );
+  _sender.start_timer<system>();
+  _indexer_right.start_timer<system>();
+  _indexer_left.start_timer<system>();
+  _ledgermeta.start_timer<system>();
+  _rates.start_timer<system>();
+  _matching.start_timer<system>();
 
   // ---
 
@@ -253,9 +239,7 @@ actor class Swap({
 
     // Payment
 
-    // Commented during test to allow free vectors, but it will be present in production
-    /*
-    if (caller != gov_canister_id) {
+    if (caller != gov_canister_id and caller != dev_id) {
       switch(payment_token) {
         case (#icp) {
 
@@ -266,7 +250,7 @@ actor class Swap({
                 caller,
                 vector_cost_ICP,
                 {
-                  owner = Principal.fromActor(this);
+                  owner = gov_canister_id;
                   subaccount = null;
                 },
               )) {
@@ -280,8 +264,8 @@ actor class Swap({
                 caller,
                 VECTOR_NTN_cost,
                 {
-                  owner = Principal.fromActor(this);
-                  subaccount = null;
+                  owner = gov_canister_id;
+                  subaccount = ?gov_canister_treasury;
                 },
               )) {
                 case (#ok()) ();
@@ -291,7 +275,6 @@ actor class Swap({
       };
 
     };
-    */
 
    
     let pid = _nextDVectorId;
@@ -355,7 +338,7 @@ actor class Swap({
   };
 
   public query func get_vector(pid : DVectorId) : async ?DVectorShared {
-    T.DVector.toShared(_history_cls, Map.get(_dvectors, nhash, pid));
+    T.DVector.toShared(Map.get(_dvectors, nhash, pid));
   };
 
   public query({caller}) func get_architect_vectors({
@@ -459,7 +442,7 @@ actor class Swap({
 
   public query func show_log() : async [?Text] {
     let start = _errlog_cls.start();
-    let end = _errlog_cls.end();
+
     Array.tabulate(
         _errlog_cls.len(),
         func(i : Nat) : ?Text {

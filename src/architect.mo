@@ -14,7 +14,6 @@ module {
     public class Architect({
         mem: ArchMem;
         dvectors : Map.Map<T.DVectorId, T.DVector>;
-        history_mem : SWB.SlidingWindowBuffer<T.History.Tx>;
     }) {
 
         public func add_vector(arch_id: Principal, vector_id: T.DVectorId) : () {
@@ -42,11 +41,11 @@ module {
                 let ?v = Map.get(dvectors, Map.n32hash, id) else Debug.trap("Memory corruption VMF2H");
                 let sv = switch(is_owner) {
                   case (true) {
-                    let ?mv = T.DVector.toShared(history_mem, ?v) else Debug.trap("Memory corruption FJ3FD");
+                    let ?mv = T.DVector.toShared(?v) else Debug.trap("Memory corruption FJ3FD");
                     mv;
                   };
                   case (false) {
-                    let ?mv = T.DVector.toSharedNotOwner(history_mem, ?v) else Debug.trap("Memory corruption FJZXC");
+                    let ?mv = T.DVector.toSharedNotOwner(?v) else Debug.trap("Memory corruption FJZXC");
                     mv;
                   }
                 }; 

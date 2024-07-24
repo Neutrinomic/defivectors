@@ -154,7 +154,7 @@ module {
     };
 
     public module DVector {
-        public func toShared(history : SWB.SlidingWindowBuffer<History.Tx>, tr : ?DVector) : ?DVectorShared {
+        public func toShared(tr : ?DVector) : ?DVectorShared {
             let ?t = tr else return null;
             let history_cls = SWB.SlidingWindowBuffer<History.TxId>(t.history);
             ?{
@@ -178,8 +178,8 @@ module {
             };
         };
 
-        public func toSharedNotOwner(history : SWB.SlidingWindowBuffer<History.Tx>, tr : ?DVector) : ?DVectorShared {
-            let ?t = toShared(history, tr) else return null;
+        public func toSharedNotOwner(tr : ?DVector) : ?DVectorShared {
+            let ?t = toShared(tr) else return null;
             ?{
                 t with
                 algo = null;
@@ -226,9 +226,9 @@ module {
                 vtx_id : Nat64;
                 from : DVectorId;
                 to : DVectorId;
-                amount : Nat;
                 fee : Nat;
-                rate : Float;
+                amountOut: Nat;
+                amountIn: Nat;
             };
             #withdraw : {
                 vtx_id : Nat64;
@@ -361,5 +361,7 @@ module {
         LEFT_ledger : Principal;
         RIGHT_ledger : Principal;
         DEFI_AGGREGATOR : Principal;
+        LEFT_aggr_id: Nat;
+        RIGHT_aggr_id: Nat;
     };
 };

@@ -24,15 +24,14 @@ describe('Basic', () => {
     let lNTN: Actor<ICRCLedgerService>;
     let vector: Actor<MainService>;
 
+    let simPrincipal = Principal.fromText("aojy2-p2wmt-4pvbt-rslzv-2clzy-n7t2s-7u7dd-xw6op-zk6kx-vv5ju-lae");
     let aggregatorId: Principal;
     let lBTCid: Principal;
     let lICPid: Principal;
     let lNTNid: Principal;
     let vectorid : Principal;
 
-    const jo = createIdentity('superSecretAlicePassword');
-    const bob = createIdentity('superSecretBobPassword');
-  
+
     beforeAll(async () => {
       // console.log(`Jo Principal: ${jo.getPrincipal().toText()}`);
       // console.log(`Bob Principal: ${bob.getPrincipal().toText()}`);
@@ -45,48 +44,54 @@ describe('Basic', () => {
       aggregatorId = aggrfixture.canisterId;
 
       // BTC Ledger
-      const ledgerfixture = await ICRCLedger(pic, jo.getPrincipal(), pic.getSnsSubnet()?.id, 10n);
+      const ledgerfixture = await ICRCLedger(pic, simPrincipal, pic.getSnsSubnet()?.id, 10n);
       lBTC = ledgerfixture.actor;
       lBTCid = ledgerfixture.canisterId;
  
       // ICP Ledger
-      const lf = await ICPLedger(pic, jo.getPrincipal(), pic.getSnsSubnet()?.id);
+      const lf = await ICPLedger(pic, simPrincipal, pic.getSnsSubnet()?.id);
       lICP = lf.actor;
       lICPid = lf.canisterId;
  
       // NTN Ledger
-      const nf = await ICRCLedger(pic, jo.getPrincipal(), pic.getSnsSubnet()?.id);
+      const nf = await ICRCLedger(pic, simPrincipal, pic.getSnsSubnet()?.id);
       lNTN = nf.actor;
       lNTNid = nf.canisterId;
- 
+
       // DeFi Vector
       let arg : MainInitArg = {
         NTN_ledger_id: lNTNid,
         ICP_ledger_id: lICPid,
         LEFT_ledger: lICPid,
         RIGHT_ledger: lBTCid,
-        DEFI_AGGREGATOR: aggregatorId
+        DEFI_AGGREGATOR: aggregatorId,
+        LEFT_aggr_id: 3n,
+        RIGHT_aggr_id:1n 
         };
 
       const mf = await Main(pic, pic.getSnsSubnet()?.id, arg);
       vector = mf.actor;
       vectorid = mf.canisterId;
+
+      lBTC.setPrincipal(simPrincipal);
+      lICP.setPrincipal(simPrincipal);
+      vector.setPrincipal(simPrincipal);
     });
 
     it(`Check BTC (minter) balance`  , async () => {
-      const result = await lBTC.icrc1_balance_of({owner: jo.getPrincipal(), subaccount: []});
+      const result = await lBTC.icrc1_balance_of({owner: simPrincipal, subaccount: []});
       expect(toState(result)).toBe("100000000000")
     });
 
 
     it(`Check ICP (minter) balance`  , async () => {
-      const result = await lICP.icrc1_balance_of({owner: jo.getPrincipal(), subaccount: []});
+      const result = await lICP.icrc1_balance_of({owner: simPrincipal, subaccount: []});
       expect(toState(result)).toBe("100000000000")
     });
 
 
     it(`Check NTN (minter) balance`  , async () => {
-      const result = await lNTN.icrc1_balance_of({owner: jo.getPrincipal(), subaccount: []});
+      const result = await lNTN.icrc1_balance_of({owner: simPrincipal, subaccount: []});
       expect(toState(result)).toBe("100000000000")
     });
 
@@ -107,10 +112,10 @@ describe('Basic', () => {
       expect(result.indexed_left).toBe(1n);
       expect(result.indexed_right).toBe(1n);
       let subaccount = new Array(32).fill(1);
-      lICP.setIdentity(jo);
-      await lICP.icrc1_transfer({to: {owner:jo.getPrincipal(), subaccount:[subaccount]}, amount: 1000000n, fee: [], memo: [], created_at_time:[], from_subaccount:[]});
-      lBTC.setIdentity(jo);
-      await lBTC.icrc1_transfer({to: {owner:jo.getPrincipal(), subaccount:[subaccount]}, amount: 1000000n, fee: [], memo: [], created_at_time:[], from_subaccount:[]});
+
+      await lICP.icrc1_transfer({to: {owner:simPrincipal, subaccount:[subaccount]}, amount: 1000000n, fee: [], memo: [], created_at_time:[], from_subaccount:[]});
+
+      await lBTC.icrc1_transfer({to: {owner:simPrincipal, subaccount:[subaccount]}, amount: 1000000n, fee: [], memo: [], created_at_time:[], from_subaccount:[]});
       
       await passTime(5);
       let result2 = await vector.monitor_snapshot();
@@ -118,8 +123,8 @@ describe('Basic', () => {
       expect(result2.indexed_right).toBe(2n);
 
       for (let i=0;i < 100; i++) {
-         await lICP.icrc1_transfer({to: {owner:jo.getPrincipal(), subaccount:[subaccount]}, amount: 100000n, fee: [], memo: [], created_at_time:[], from_subaccount:[]});
-         await lBTC.icrc1_transfer({to: {owner:jo.getPrincipal(), subaccount:[subaccount]}, amount: 1000000n, fee: [], memo: [], created_at_time:[], from_subaccount:[]});
+         await lICP.icrc1_transfer({to: {owner:simPrincipal, subaccount:[subaccount]}, amount: 100000n, fee: [], memo: [], created_at_time:[], from_subaccount:[]});
+         await lBTC.icrc1_transfer({to: {owner:simPrincipal, subaccount:[subaccount]}, amount: 1000000n, fee: [], memo: [], created_at_time:[], from_subaccount:[]});
       };
       await passTime(5);
       let result3 = await vector.monitor_snapshot();
@@ -130,7 +135,7 @@ describe('Basic', () => {
     
 
     it(`Create two vectors which are supposed to match`, async () => {
-
+      
       const result = await vector.create_vector({
         algo: {
           v1:{
@@ -152,7 +157,7 @@ describe('Basic', () => {
           ledger: lICPid
         }
       }, {icp: null});
- 
+
       expect(result.ok).toBe(0);
 
       const result1 = await vector.create_vector({

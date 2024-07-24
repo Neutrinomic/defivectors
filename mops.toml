@@ -1,5 +1,5 @@
 [dependencies]
-base = "0.10.2"
+base = "0.11.3"
 map = "9.0.1"
 itertools = "0.1.2"
 vector = "0.2.0"
@@ -7,3 +7,4 @@ rxmodb = "0.1.5"
 stableheapbtreemap = "1.5.0"
 devefi-icrc-ledger = "1.1.4"
 swbstable = "1.1.1"
+rechain = "../rechain_icrc3"

@@ -76,7 +76,7 @@ module {
         };
 
         private func apply_active_rules(v : T.DVector) : () {
-            if (v.source_balance_tradable <= v.source_balance_available) {
+            if (v.source_balance_tradable > v.source_balance_available) {
                 v.active := false;
                 return;
             };
@@ -84,13 +84,13 @@ module {
             v.active := v.source_balance_tradable > v.source.ledger_fee * 300; //Rule: One of the ledgers must not have a fee higher than 300 times the other ledger fee
         };
 
-        private func tick() : async () {
+        private func tick<system>() : async () {
             try {
                 await settle();
             } catch (e) {
                 errlog.add("matching:settle:" # Error.message(e));
             };
-            ignore Timer.setTimer(#seconds 2, tick);
+            ignore Timer.setTimer<system>(#seconds 2, tick);
         };
 
         public func settle() : async () {
@@ -161,13 +161,13 @@ module {
                 // Transfer from left to right
                 left_tradable -= left_transfer_amount;
 
-                make_transaction(left_id, left, right_id, right, left_transfer_amount);
-
-                // Transfer from right to left (considering the rate)
+                 // Transfer from right to left (considering the rate)
                 let right_transfer_amount = left_transfer_amount / final_rate;
                 right_tradable -= right_transfer_amount;
 
-                make_transaction(right_id, right, left_id, left, right_transfer_amount);
+                make_transaction(left_id, left, right_id, right, left_transfer_amount, right_transfer_amount);
+
+                make_transaction(right_id, right, left_id, left, right_transfer_amount, left_transfer_amount);
 
                 // Update the vectors if partial transfer
                 if (left_tradable == 0) {
@@ -235,9 +235,10 @@ module {
             tx_id;
         };
 
-        private func make_transaction(from_id : T.DVectorId, from : V, to_id : T.DVectorId, to : V, amount : Float) {
+        private func make_transaction(from_id : T.DVectorId, from : V, to_id : T.DVectorId, to : V, amount : Float, amountFor: Float) {
 
-            let amountNat : Nat = Nat.min(T.natAmount(amount, from.source.ledger_decimals), from.source_balance_tradable);
+            let amountNat : Nat = T.natAmount(amount, from.source.ledger_decimals);
+            let amountForNat : Nat = T.natAmount(amountFor, to.source.ledger_decimals);
 
             let tx_id = mem.last_tx_id;
             mem.last_tx_id += 1;
@@ -261,12 +262,12 @@ module {
             from.unconfirmed_transactions := Array.append(from.unconfirmed_transactions, [tx]);
             apply_active_rules(from);
 
-            history.add([from], #swap({ vtx_id = tx_id; from = from_id; to = to_id; amount = amountNat; fee = from.source.ledger_fee; rate = from.rate }));
+            history.add([from], #swap({ vtx_id = tx_id; from = from_id; to = to_id; amountOut = amountNat; fee = from.source.ledger_fee; amountIn = amountForNat }));
 
         };
 
-        public func start_timer() {
-            ignore Timer.setTimer(#seconds 0, tick);
+        public func start_timer<system>() {
+            ignore Timer.setTimer<system>(#seconds 0, tick);
         };
     };
 

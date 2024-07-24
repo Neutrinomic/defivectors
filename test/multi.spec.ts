@@ -31,8 +31,8 @@ describe('Multi', () => {
     let lNTNid: Principal;
     let vectorid : Principal;
 
-    const jo = createIdentity('superSecretAlicePassword');
-    const bob = createIdentity('superSecretBobPassword');
+    let simPrincipal = Principal.fromText("aojy2-p2wmt-4pvbt-rslzv-2clzy-n7t2s-7u7dd-xw6op-zk6kx-vv5ju-lae");
+
     beforeEach(() => {
       mock(); // makes Math.random deterministic
     });
@@ -51,17 +51,17 @@ describe('Multi', () => {
       aggregatorId = aggrfixture.canisterId;
 
       // BTC Ledger
-      const ledgerfixture = await ICRCLedger(pic, jo.getPrincipal(), pic.getSnsSubnet()?.id, 10n);
+      const ledgerfixture = await ICRCLedger(pic, simPrincipal, pic.getSnsSubnet()?.id, 10n);
       lBTC = ledgerfixture.actor;
       lBTCid = ledgerfixture.canisterId;
  
       // ICP Ledger
-      const lf = await ICPLedger(pic, jo.getPrincipal(), pic.getSnsSubnet()?.id);
+      const lf = await ICPLedger(pic, simPrincipal, pic.getSnsSubnet()?.id);
       lICP = lf.actor;
       lICPid = lf.canisterId;
  
       // NTN Ledger
-      const nf = await ICRCLedger(pic, jo.getPrincipal(), pic.getSnsSubnet()?.id);
+      const nf = await ICRCLedger(pic, simPrincipal, pic.getSnsSubnet()?.id);
       lNTN = nf.actor;
       lNTNid = nf.canisterId;
  
@@ -71,17 +71,19 @@ describe('Multi', () => {
         ICP_ledger_id: lICPid,
         LEFT_ledger: lICPid,
         RIGHT_ledger: lBTCid,
-        DEFI_AGGREGATOR: aggregatorId
+        DEFI_AGGREGATOR: aggregatorId,
+        LEFT_aggr_id: 3n,
+        RIGHT_aggr_id:1n 
         };
 
       const mf = await Main(pic, pic.getSnsSubnet()?.id, arg);
       vector = mf.actor;
       vectorid = mf.canisterId;
 
-      lICP.setIdentity(jo);
-      lBTC.setIdentity(jo);
-      lNTN.setIdentity(jo);
-      vector.setIdentity(jo);
+      lICP.setPrincipal(simPrincipal);
+      lBTC.setPrincipal(simPrincipal);
+      lNTN.setPrincipal(simPrincipal);
+      vector.setPrincipal(simPrincipal);
 
     });
 
@@ -180,7 +182,7 @@ describe('Multi', () => {
       expect(d2).not.toBe(0n);
 
       let rate = Number(d1)/Number(d2);
-      console.log(rate);
+      //console.log(rate);
 
     }, 10000);
 

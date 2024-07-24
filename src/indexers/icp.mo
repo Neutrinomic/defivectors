@@ -227,19 +227,19 @@ module {
             monitor.add(metric_key, inst_end - inst_start);
         };
 
-        private func qtimer() : async () {
+        private func qtimer<system>() : async () {
             try {
                 await proc();
             } catch (e) {
                 errlog.add("indexers:icp:" # Principal.toText(ledger_id) # ":" # Error.message(e));
             };
 
-            ignore Timer.setTimer(#seconds 2, qtimer);
+            ignore Timer.setTimer<system>(#seconds 2, qtimer);
 
         };
 
-        public func start_timer() {
-            ignore Timer.setTimer(#seconds 2, qtimer);
+        public func start_timer<system>() {
+            ignore Timer.setTimer<system>(#seconds 2, qtimer);
         };
     };
 

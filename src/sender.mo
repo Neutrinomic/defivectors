@@ -33,7 +33,7 @@ module {
         monitor : Monitor.Monitor;
     }) {
 
-        private func tick() : async () {
+        private func tick<system>() : async () {
             let inst_start = Prim.performanceCounter(1); // 1 is preserving with async
 
             let now = T.now();
@@ -76,14 +76,14 @@ module {
                         
                 };
             };
-            ignore Timer.setTimer(#seconds 2, tick);
+            ignore Timer.setTimer<system>(#seconds 2, tick);
             let inst_end = Prim.performanceCounter(1);
             monitor.add(Monitor.SENDER, inst_end - inst_start);
 
         };
 
-        public func start_timer() {
-        ignore Timer.setTimer(#seconds 2, tick);
+        public func start_timer<system>() {
+        ignore Timer.setTimer<system>(#seconds 2, tick);
         }
     };
 

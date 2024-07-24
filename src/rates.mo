@@ -18,6 +18,11 @@ module {
             let latest = await da.get_latest_extended();
 
             label search for ((id, ledger) in whitelisted.vals()) {
+                if (id == 0) { // USD
+                    ignore Map.put<Principal, Float>(_rates, phash, ledger, 1.0);
+                    continue search;
+                };
+                
                 let ?p = Array.find(latest, func (x : DA.LatestExtendedToken) : Bool {
                     (x.id == id)
                 }) else continue search;
@@ -41,9 +46,9 @@ module {
         };
 
 
-        public func start_timer() {
-            ignore Timer.setTimer(#seconds 0, update);
-            ignore Timer.recurringTimer(#seconds 60, update);
+        public func start_timer<system>() {
+            ignore Timer.setTimer<system>(#seconds 0, update);
+            ignore Timer.recurringTimer<system>(#seconds 60, update);
         }
     }
 }
