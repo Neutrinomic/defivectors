@@ -25,6 +25,7 @@ import ErrLog "./errlog";
 import Rechain "mo:rechain";
 import RechainT "./rechain_types";
 import Timer "mo:base/Timer";
+import PairMarketData "mo:icrc45";
 
 actor class Swap({
         NTN_ledger_id;
@@ -101,6 +102,17 @@ actor class Swap({
     ];
   });
 
+  // --- ICRC45
+  let _my_pair_id : PairMarketData.PairId = {
+      base = {platform = 1; path = Principal.toBlob(LEFT_ledger)};
+      quote = {platform = 1; path = Principal.toBlob(RIGHT_ledger)};
+    };
+  let _market_data_mem = PairMarketData.Mem();
+  let _market_data = PairMarketData.PairMarketData({
+    mem = _market_data_mem;
+    id = _my_pair_id;
+  });
+
   // ---
 
   stable let _matching_mem : Matching.MatchingMem = {
@@ -116,6 +128,7 @@ actor class Swap({
     monitor = _monitor;
     ledger_left = LEFT_ledger;
     ledger_right = RIGHT_ledger;
+    market_data = _market_data;
   });
 
   // ---
@@ -184,11 +197,13 @@ actor class Swap({
   ignore Timer.setTimer<system>(#seconds 0, func () : async () {
       await rechain.start_archiving<system>();
   });
-  // Autoupgrade every time this canister is upgraded
+  // Autoupgrade ICRC3 archives every time this canister is upgraded
   ignore Timer.setTimer<system>(#seconds 1, func () : async () {
       await rechain.upgrade_archives();
   });
   // ---
+
+
 
   // Transfer NTN from account using icrc2, trap on error
   private func require_ntn_transfer(from : Principal, amount : Nat, reciever : Ledger.Account) : async R<(), Text> {
@@ -503,7 +518,9 @@ actor class Swap({
         chain_mem.canister := ?Principal.fromActor(this);
     };
 
-
+    public query func icrc_45_get_pairs(req: PairMarketData.PairRequest) : async PairMarketData.PairResponse {
+        #Ok([_market_data.getPairData()]);
+    };
 
 
 };

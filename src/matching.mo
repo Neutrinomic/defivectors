@@ -15,6 +15,7 @@ import History "./history";
 import Nat32 "mo:base/Nat32";
 import Monitor "./monitor";
 import ErrLog "./errlog";
+import PairMarketData "mo:icrc45";
 
 module {
 
@@ -34,6 +35,7 @@ module {
         monitor : Monitor.Monitor;
         ledger_left : Principal;
         ledger_right : Principal;
+        market_data : PairMarketData.PairMarketData;
     }) {
 
         // Recalcualte rates
@@ -163,6 +165,10 @@ module {
                 make_transaction(left_id, left, right_id, right, left_transfer_amount, right_transfer_amount);
 
                 make_transaction(right_id, right, left_id, left, right_transfer_amount, left_transfer_amount);
+
+                // Register swap in market data
+                let usd_volume = T.natAmount(left_transfer_amount * left.source_rate_usd, 6);
+                market_data.registerSwap(T.natAmount(left_transfer_amount, left.source.ledger_decimals), T.natAmount(right_transfer_amount, right.source.ledger_decimals), final_rate, usd_volume);
 
                 // Update the vectors if partial transfer
                 if (left_tradable == 0) {
