@@ -103,7 +103,7 @@ module {
                     v.source.ledger == ledger_left and v.active == true and v.source_balance_tradable > 0;
                 },
             )
-            |> Iter.sort<(K, V)>(_, func((k, v), (k2, v2)) = compareVectorRates(v, v2)) // we want the highest rates first
+            |> Iter.sort<(K, V)>(_, func((k, v), (k2, v2)) = compareVectorRates(v2, v)) // we want the highest rates first
             |> Iter.toArray(_);
 
             let right_side = Map.entries(dvectors)
@@ -115,6 +115,26 @@ module {
             )
             |> Iter.sort<(K, V)>(_, func((k, v), (k2, v2)) = compareVectorRates(v2, v)) // flipped for reversed order. we want lowest rates first
             |> Iter.toArray(_);
+
+            // MarketData register OrderBook
+            market_data.registerOrderBook(
+                Iter.fromArray(right_side)
+                |> Iter.map<(K, V), (Float, Nat)>(
+                    _,
+                    func(k, v) : (Float, Nat) {
+                        (v.rate, v.source_balance_tradable);
+                    },
+                )
+                |> Iter.toArray(_),
+                Iter.fromArray(left_side)
+                |> Iter.map<(K, V), (Float, Nat)>(
+                    _,
+                    func(k, v) : (Float, Nat) {
+                        (1 / v.rate, v.source_balance_tradable);
+                    },
+                )
+                |> Iter.toArray(_)
+            );
 
             // match orders
 
