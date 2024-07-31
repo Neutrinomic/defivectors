@@ -10,3 +10,4 @@ dfx deploy --network ic  --argument 'record {
     RIGHT_aggr_id = 30;
 }' icpntn
 dfx canister --network ic start icpntn
+dfx canister --network ic call icpntn init

@@ -10,3 +10,4 @@ dfx deploy --network ic  --argument 'record {
     RIGHT_aggr_id = 2;
 }' icpcketh
 dfx canister --network ic start icpcketh
+dfx canister --network ic call icpcketh init

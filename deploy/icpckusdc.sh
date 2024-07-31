@@ -10,3 +10,4 @@ dfx deploy --network ic  --argument 'record {
     RIGHT_aggr_id = 0;
 }' icpckusdc
 dfx canister --network ic start icpckusdc
+dfx canister --network ic call icpckusdc init

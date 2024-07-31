@@ -26,6 +26,7 @@ import Rechain "mo:rechain";
 import RechainT "./rechain_types";
 import Timer "mo:base/Timer";
 import PairMarketData "mo:icrc45";
+import Iter "mo:base/Iter";
 
 actor class Swap({
         NTN_ledger_id;
@@ -514,12 +515,25 @@ actor class Swap({
         return rechain.icrc3_supported_block_types();
     };
 
-    public func set_ledger_canister(): async () {
+    public shared({caller}) func init(): async () {
+        assert(Principal.isController(caller));
         chain_mem.canister := ?Principal.fromActor(this);
     };
 
+    public query func icrc_45_list_pairs() : async PairMarketData.ListPairsResponse {
+        [{data= Principal.fromActor(this); id=_my_pair_id}]
+    };
+
     public query func icrc_45_get_pairs(req: PairMarketData.PairRequest) : async PairMarketData.PairResponse {
-        #Ok([_market_data.getPairData()]);
+      let res = Vector.new<PairMarketData.PairData>();
+      for (pair_id in Iter.fromArray(req.pairs)) {
+        if (pair_id == _my_pair_id) {
+          Vector.add(res, _market_data.getPairData(req.depth));
+        } else {
+          return #Err(#NotFound(pair_id));
+        }
+      };
+      #Ok(Vector.toArray(res));
     };
 
 

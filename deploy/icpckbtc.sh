@@ -10,3 +10,4 @@ dfx deploy --network ic  --argument 'record {
     RIGHT_aggr_id = 1;
 }' icpckbtc
 dfx canister --network ic start icpckbtc
+dfx canister --network ic call icpckbtc init
