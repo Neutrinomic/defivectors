@@ -107,7 +107,7 @@ actor class Swap({
       base = {platform = 1; path = Principal.toBlob(LEFT_ledger)};
       quote = {platform = 1; path = Principal.toBlob(RIGHT_ledger)};
     };
-  let _market_data_mem = PairMarketData.Mem();
+  stable let _market_data_mem = PairMarketData.Mem();
   let _market_data = PairMarketData.PairMarketData({
     mem = _market_data_mem;
     id = _my_pair_id;
