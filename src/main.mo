@@ -515,6 +515,10 @@ actor class Swap({
         return rechain.icrc3_supported_block_types();
     };
 
+    public query func rechain_stats() : async Rechain.Stats {
+        rechain.stats();
+    };
+
     public shared({caller}) func init(): async () {
         assert(Principal.isController(caller));
         chain_mem.canister := ?Principal.fromActor(this);

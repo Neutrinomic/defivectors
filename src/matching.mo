@@ -78,7 +78,7 @@ module {
                 return;
             };
             
-            v.active := v.source_balance_tradable > v.source.ledger_fee * 300; //Rule: One of the ledgers must not have a fee higher than 300 times the other ledger fee
+            v.active := v.source_balance_tradable > v.source.ledger_fee * 300;
         };
 
         private func tick<system>() : async () {
@@ -191,10 +191,10 @@ module {
                 market_data.registerSwap(T.natAmount(left_transfer_amount, left.source.ledger_decimals), T.natAmount(right_transfer_amount, right.source.ledger_decimals), final_rate, usd_volume);
 
                 // Update the vectors if partial transfer
-                if (left_tradable == 0) {
+                if (left_tradable <= Float.fromInt(left.source.ledger_fee*100)) {
                     left_index += 1;
                 };
-                if (right_tradable == 0) {
+                if (right_tradable <= Float.fromInt(right.source.ledger_fee*100)) {
                     right_index += 1;
                 };
 
