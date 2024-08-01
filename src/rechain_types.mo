@@ -57,8 +57,8 @@ module {
                     ("amount", #Nat(xfer.amount)),
                     ("from", AccountToGValue(xfer.from)),
                     ("to", AccountToGValue(xfer.to)),
-                    ("from_owner", #Array([#Blob(Principal.toBlob(xfer.from_owner))])),
-                    ("to_owner", #Array([#Blob(Principal.toBlob(xfer.to_owner))]))
+                    ("from_owner", #Array([#Array([#Blob(Principal.toBlob(xfer.from_owner))])])),
+                    ("to_owner", #Array([#Array([#Blob(Principal.toBlob(xfer.to_owner))])]))
                 ]))))
             }
         ]
