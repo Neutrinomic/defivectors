@@ -355,13 +355,16 @@ module {
         return true;
     };
 
-    public type InitArg = {
-        NTN_ledger_id : Principal;
-        ICP_ledger_id : Principal;
-        LEFT_ledger : Principal;
-        RIGHT_ledger : Principal;
-        DEFI_AGGREGATOR : Principal;
+    public type ProdInitArg = {
+        LEFT_ledger: Principal;
+        RIGHT_ledger: Principal;
         LEFT_aggr_id: Nat;
         RIGHT_aggr_id: Nat;
     };
+    public type RootInitArg = {
+        NTN_ledger_id: Principal;
+        ICP_ledger_id: Principal;
+        DEFI_AGGREGATOR: Principal;
+    };
+    public type InitArg = ProdInitArg and RootInitArg;
 };
