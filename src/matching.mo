@@ -16,6 +16,10 @@ import Nat32 "mo:base/Nat32";
 import Monitor "./monitor";
 import ErrLog "./errlog";
 import PairMarketData "mo:icrc45";
+import Rechain "mo:rechain";
+import RechainT "./rechain_types";
+import Time "mo:base/Time";
+import Int "mo:base/Int";
 
 module {
 
@@ -36,6 +40,7 @@ module {
         ledger_left : Principal;
         ledger_right : Principal;
         market_data : PairMarketData.PairMarketData;
+        rechain : Rechain.Chain<RechainT.Action, RechainT.ActionError>;
     }) {
 
         // Recalcualte rates
@@ -188,7 +193,30 @@ module {
 
                 // Register swap in market data
                 let usd_volume = T.natAmount(left_transfer_amount * left.source_rate_usd, 6);
-                market_data.registerSwap(T.natAmount(left_transfer_amount, left.source.ledger_decimals), T.natAmount(right_transfer_amount, right.source.ledger_decimals), final_rate, usd_volume);
+                let left_transfer_amount_Nat = T.natAmount(left_transfer_amount, left.source.ledger_decimals);
+                let right_transfer_amount_Nat = T.natAmount(right_transfer_amount, right.source.ledger_decimals);
+                market_data.registerSwap(left_transfer_amount_Nat, right_transfer_amount_Nat, final_rate, usd_volume);
+
+                // Register exchange in rechain
+                // Add to ICRC3 Rechain back log
+                ignore rechain.dispatch({
+                    timestamp = Int.abs(Time.now());
+                    kind = #exchange([{
+                        ledger = left.source.ledger;
+                        amount = left_transfer_amount_Nat;
+                        from = left.source.address;
+                        to = right.destination.address;
+                        from_owner = left.owner;
+                        to_owner = right.owner;
+                    }, {
+                        ledger = right.source.ledger;
+                        amount = right_transfer_amount_Nat;
+                        from = right.source.address;
+                        to = left.destination.address;
+                        from_owner = right.owner;
+                        to_owner = left.owner;
+                    }]);
+                });
 
                 // Update the vectors if partial transfer
                 if (left_tradable <= Float.fromInt(left.source.ledger_fee*100)) {

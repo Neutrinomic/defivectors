@@ -1,13 +1,10 @@
 import T "./types";
 import SWB "mo:swbstable/Stable";
-import Rechain "mo:rechain";
-import RechainT "./rechain_types";
 
 module {
 
     public class History({
         mem : SWB.SlidingWindowBuffer<T.History.Tx>;
-        rechain : Rechain.Chain<T.History.Tx, RechainT.ActionError>;
     }) {
 
         public func add(vectors : [T.DVector], kind : T.History.TxKind) {
@@ -33,8 +30,7 @@ module {
                 };
             };
 
-            // Add to ICRC3 Rechain back log
-            ignore rechain.dispatch(tx);
+
         };
 
     };

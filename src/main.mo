@@ -61,8 +61,11 @@ actor class Swap({
   // Rechain
 
   stable let chain_mem  = Rechain.Mem();
-  var rechain = Rechain.Chain<T.History.Tx, RechainT.ActionError>({
-      settings = ?{Rechain.DEFAULT_SETTINGS with supportedBlocks = []};
+  var rechain = Rechain.Chain<RechainT.Action, RechainT.ActionError>({
+      settings = ?{Rechain.DEFAULT_SETTINGS with supportedBlocks = [{
+        block_type = "47exchange";
+        url = "https://github.com/Neutrinomic/wg_defi/blob/main/icrc-47/ICRC47.md";
+      }]};
       mem = chain_mem;
       encodeBlock = RechainT.encodeBlock;
       reducers = [];
@@ -80,7 +83,6 @@ actor class Swap({
 
   let _history = History.History({
     mem = _history_cls;
-    rechain;
   });
 
   stable let _errlog_mem = SWB.SlidingWindowBufferNewMem<Text>();
@@ -130,6 +132,7 @@ actor class Swap({
     ledger_left = LEFT_ledger;
     ledger_right = RIGHT_ledger;
     market_data = _market_data;
+    rechain;
   });
 
   // ---
