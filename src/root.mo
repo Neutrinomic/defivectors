@@ -107,11 +107,12 @@ actor class Root(init_args : ?T.RootInitArg) = this {
         // 2. Upgrade
         let DVectorMgr = (system DVector.Swap)(#upgrade myActor);
 
-        // 3. Start canister
-        await ic.start_canister({canister_id = dvec.canister_id});
-
         try {
           ignore await DVectorMgr(full_args);
+
+          // 3. Start canister
+          await ic.start_canister({canister_id = dvec.canister_id});
+
           _eventlog.add("OK : Successful upgrading of canister " # Principal.toText(dvec.canister_id));
         } catch (err) {
           _eventlog.add("ERR : Failed upgrading canister " # Principal.toText(dvec.canister_id) # " : " # Error.message(err));

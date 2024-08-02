@@ -1,14 +1,11 @@
 import Time "mo:base/Time";
 import ExperimentalCycles "mo:base/ExperimentalCycles";
-import Prim "mo:⛔";
-
 
 module {
 
     public type CanisterInfo = {
       last_upgrade : Int;
       cycles: Nat;
-      version: Nat64;
     };
 
     public class Info() {
@@ -19,7 +16,6 @@ module {
             {
                 last_upgrade;
                 cycles;
-                version = Prim.canisterVersion();
             }
         }
     };

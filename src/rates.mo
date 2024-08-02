@@ -48,7 +48,7 @@ module {
 
         public func start_timer<system>() {
             ignore Timer.setTimer<system>(#seconds 0, update);
-            ignore Timer.recurringTimer<system>(#seconds 60, update);
+            ignore Timer.recurringTimer<system>(#seconds 30, update);
         }
     }
 }

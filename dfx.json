@@ -1,28 +1,10 @@
 {
   "canisters": {
-    "icpckbtc": {
+    "root": {
       "build": "./build.sh",
-      "candid": "build/main.did",
+      "candid": "build/root.did",
       "type": "custom",
-      "wasm": "build/main.wasm"
-    },
-    "icpntn": {
-      "build": "./build.sh",
-      "candid": "build/main.did",
-      "type": "custom",
-      "wasm": "build/main.wasm"
-    },
-    "icpckusdc": {
-      "build": "./build.sh",
-      "candid": "build/main.did",
-      "type": "custom",
-      "wasm": "build/main.wasm"
-    },
-    "icpcketh": {
-      "build": "./build.sh",
-      "candid": "build/main.did",
-      "type": "custom",
-      "wasm": "build/main.wasm"
+      "wasm": "build/root.wasm"
     }
   },
   "defaults": {
