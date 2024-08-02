@@ -19,4 +19,4 @@ export async function Main(pic: PocketIc, subnet:Principal | undefined, initargs
 };
 
 
-export { MainService, InitArg as MainInitArg };
+export { MainService, InitArg as MainInitArg, idlFactory as MainIdlFactory };

@@ -27,6 +27,8 @@ import RechainT "./rechain_types";
 import Timer "mo:base/Timer";
 import PairMarketData "mo:icrc45";
 import Iter "mo:base/Iter";
+import Time "mo:base/Time";
+import Info "./info";
 
 actor class Swap({
         NTN_ledger_id;
@@ -207,7 +209,7 @@ actor class Swap({
   });
   // ---
 
-
+  let _info = Info.Info();
 
   // Transfer NTN from account using icrc2, trap on error
   private func require_ntn_transfer(from : Principal, amount : Nat, reciever : Ledger.Account) : async R<(), Text> {
@@ -481,14 +483,7 @@ actor class Swap({
   };
 
   public query func show_log() : async [?Text] {
-    let start = _errlog_cls.start();
-
-    Array.tabulate(
-        _errlog_cls.len(),
-        func(i : Nat) : ?Text {
-            _errlog_cls.getOpt(start + i);
-        },
-    );
+    _errlog.get();
   };
 
 
@@ -543,5 +538,8 @@ actor class Swap({
       #Ok(Vector.toArray(res));
     };
 
+    public query func canister_info() : async Info.CanisterInfo {
+        _info.info();
+    };
 
 };

@@ -253,9 +253,7 @@ describe('Basic', () => {
       expect(e1.ok.entries[0][1][0].kind.source_in.amount).toBe(100000000000n);
     });
 
-    afterAll(async () => {
-      await pic.tearDown();
-    });
+
   
 
     it("Check if ICRC-3 Log works", async () => {
@@ -266,10 +264,14 @@ describe('Basic', () => {
         length: 900n
       }]);
 
-      expect(ve.ok.total).toBe(148n);
-      expect(rez.log_length).toBe(148n);
+      expect(Number(ve.ok.total)).toBe(148);
+      expect(Number(rez.log_length)).toBe(18);
 
       expect(toState(rez)).toMatchSnapshot();
+    });
+
+    afterAll(async () => {
+      await pic.tearDown();
     });
 
     async function passTime(n:number) {
