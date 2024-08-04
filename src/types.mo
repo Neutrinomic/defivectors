@@ -367,4 +367,23 @@ module {
         DEFI_AGGREGATOR: Principal;
     };
     public type InitArg = ProdInitArg and RootInitArg;
+
+    public type SNSValidationResult = {
+        #Ok: Text;
+        #Err :Text;
+    };
+
+    public func callerSubaccount(p : Principal) : Blob {
+    let a = Array.init<Nat8>(32, 0);
+        let pa = Principal.toBlob(p);
+        a[0] := Nat8.fromNat(pa.size());
+
+        var pos = 1;
+        for (x in pa.vals()) {
+                a[pos] := x;
+                pos := pos + 1;
+            };
+
+        Blob.fromArray(Array.freeze(a));
+  };
 };

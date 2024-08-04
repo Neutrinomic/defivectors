@@ -11,6 +11,7 @@ import Info "./info";
 import SWB "mo:swbstable/Stable";
 import ErrLog "./errlog";
 import IC "./services/ic";
+import Nat "mo:base/Nat";
 
 actor class Root(init_args : ?T.RootInitArg) = this {
 
@@ -53,6 +54,18 @@ actor class Root(init_args : ?T.RootInitArg) = this {
         });
     };
 
+    public query func validate_add_pair(iargs: T.ProdInitArg): async T.SNSValidationResult {
+
+      let msg:Text = "
+        Adding new pair to DEVEFI:
+        LEFT_ledger: " # Principal.toText(iargs.LEFT_ledger) # "
+        RIGHT_ledger: " # Principal.toText(iargs.RIGHT_ledger) # "
+        LEFT_aggr_id:  " # Nat.toText(iargs.LEFT_aggr_id) # "
+        RIGHT_aggr_id: " # Nat.toText(iargs.RIGHT_aggr_id) # ";
+      ";
+
+      #Ok(msg);
+    };
     
 
     public query func list_pairs() : async [Pair] {

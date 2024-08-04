@@ -211,6 +211,14 @@ actor class Swap({
 
   let _info = Info.Info();
 
+  // Transfer NTN from subaccount using icrc1, trap on error. Useful for SNSes paying for vectors
+  private func require_ntn_dao_transfer(from : Principal, amount : Nat, reciever : Ledger.Account) : async R<(), Text> {
+    switch (await NTN_ledger.icrc1_transfer({ to = reciever; fee = null; memo = null; from_subaccount = ?T.callerSubaccount(from); created_at_time = null; amount = amount })) {
+      case (#Ok(_)) #ok();
+      case (#Err(e)) #err(debug_show(e));
+    };
+  };
+
   // Transfer NTN from account using icrc2, trap on error
   private func require_ntn_transfer(from : Principal, amount : Nat, reciever : Ledger.Account) : async R<(), Text> {
     switch (await NTN_ledger.icrc2_transfer_from({ from = { owner = from; subaccount = null }; spender_subaccount = null; to = reciever; fee = null; memo = null; from_subaccount = null; created_at_time = null; amount = amount })) {
@@ -225,6 +233,10 @@ actor class Swap({
       case (#Ok(_)) #ok();
       case (#Err(e)) #err(debug_show(e));
     };
+  };
+
+  public query func validate_modify_vector(req : T.DVectorChangeRequest): async T.SNSValidationResult {
+    #Ok(debug_show(req));
   };
 
   public shared ({ caller }) func modify_vector(req : T.DVectorChangeRequest) : async R<(), Text> {
@@ -266,8 +278,26 @@ actor class Swap({
     #ok();
   };
 
+  public query func validate_create_vector(req : DVectorRequest, payment_token:{#icp; #ntn; #ntndao}): async T.SNSValidationResult {
+    let daddress :Text = switch(req.destination.address) {
+        case (null) "none";
+        case (?{owner; subaccount}) Principal.toText(owner) # " " # debug_show(subaccount);
+      };
+    if (payment_token != #ntndao) return #Err("You can only pay using the #ntndao payment option");
 
-  public shared ({ caller }) func create_vector(req : DVectorRequest, payment_token:{#icp; #ntn}) : async R<DVectorId, Text> {
+    let msg = "
+      Creating new vector:
+      Source ledger: " # Principal.toText(req.source.ledger) # "
+      Destination ledger: " # Principal.toText(req.destination.ledger) # "
+      Destination address: " # daddress # "
+      Payment token: " # debug_show(payment_token) # ";
+      Request: " # debug_show(req) # ";
+    ";
+    #Ok(msg);
+
+  };
+
+  public shared ({ caller }) func create_vector(req : DVectorRequest, payment_token:{#icp; #ntn; #ntndao}) : async R<DVectorId, Text> {
 
     let ?source_ledger_meta = _ledgermeta.get(req.source.ledger) else return #err("source ledger meta not found");
     let ?destination_ledger_meta = _ledgermeta.get(req.destination.ledger) else return #err("destination ledger meta not found");
@@ -313,7 +343,22 @@ actor class Swap({
                 case (#ok()) ();
                 case (#err(e)) return #err(e);
               };
+        };
+
+        case (#ntndao) {
+          switch(await require_ntn_dao_transfer(
+                caller,
+                VECTOR_NTN_cost,
+                {
+                  owner = gov_canister_id;
+                  subaccount = ?gov_canister_treasury;
+                },
+              )) {
+                case (#ok()) ();
+                case (#err(e)) return #err(e);
+              };
         }
+
       };
 
     };
@@ -449,15 +494,29 @@ actor class Swap({
     };
   };
 
+  public type WithdrawRequest = {
+    id : T.DVectorId;
+    to : Ledger.Account;
+    amount : Nat;
+    location : T.VLocation;
+  };
+
+  public query func validate_withdraw_vector(req: WithdrawRequest): async T.SNSValidationResult {
+    if (not T.is_valid_account(req.to)) return #Err("To address is not valid");
+    let ?vector = Map.get(_dvectors, nhash, req.id) else return #Err("vector not found");
+    if (vector.unconfirmed_transactions.size() > 10) return #Err("too many unconfirmed transactions");
+
+    #Ok(debug_show(req));
+  };
+
   public shared ({ caller }) func withdraw_vector({
     id : T.DVectorId;
     to : Ledger.Account;
     amount : Nat;
     location : T.VLocation;
-  }) : async R<Nat64, Text> {
+  } : WithdrawRequest) : async R<Nat64, Text> {
 
     if (not T.is_valid_account(to)) return #err("To address is not valid");
-
     let ?vector = Map.get(_dvectors, nhash, id) else return #err("vector not found");
     if (caller != vector.owner) return #err("caller is not the owner");
     if (vector.unconfirmed_transactions.size() > 10) return #err("too many unconfirmed transactions");
