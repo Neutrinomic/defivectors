@@ -17,8 +17,9 @@ actor class Root(init_args : ?T.RootInitArg) = this {
 
     stable let _init = switch(init_args) { case (?a) { a }; case(null) { Debug.trap("No args provided") } };
 
-    let DVECTOR_CYCLES = 10_000_000_000_000;
+    let DVECTOR_CYCLES = 20_000_000_000_000;
     let DVECTOR_ADDITIONAL_CONTROLLERS : [Principal] = [];
+    let DVECTOR_CYCLES_REFILL_SEC = 21600; // 6 hours
 
     public type Pair = {
         init_args: T.ProdInitArg;
@@ -151,4 +152,41 @@ actor class Root(init_args : ?T.RootInitArg) = this {
     public query func show_log() : async [?Text] {
       _eventlog.get();
     };
+
+    // Tops up all pair canisters with cycles
+    private func start_cycleMaintenance<system>() : async () {
+      let cans = Vector.toArray(_pairs);
+     
+      for (a in cans.vals()) {
+
+        try {
+          let act = actor (Principal.toText(a.canister_id)) : DVector.Swap;
+          let ci = await act.canister_info();
+          let can_cycles = ci.cycles;
+
+          if (can_cycles < DVECTOR_CYCLES/2) {
+            if (ExperimentalCycles.balance() > DVECTOR_CYCLES * 2) { 
+              let refill_amount = DVECTOR_CYCLES - can_cycles:Nat;
+              try {
+              ExperimentalCycles.add<system>(refill_amount);
+              await act.deposit_cycles();
+              _eventlog.add("Ok : Refilled " # Principal.toText(a.canister_id) # " with " # debug_show (refill_amount));
+              } catch (err) {
+                _eventlog.add("Err : Failed to refill canister " # Principal.toText(a.canister_id) # " with " # debug_show (refill_amount) # " : " # Error.message(err));
+              };
+            } else { 
+              _eventlog.add("Err : Not enough cycles to replenish pair canisters " # debug_show ExperimentalCycles.balance());
+            };
+          };
+        } catch (err) {
+          _eventlog.add("Err : Failed to get canister info " # Principal.toText(a.canister_id) # " : " # Error.message(err));
+        }
+      };
+      ignore Timer.setTimer<system>(#seconds(DVECTOR_CYCLES_REFILL_SEC), start_cycleMaintenance);
+    };
+
+    ignore Timer.setTimer<system>(#seconds 120, func () : async () {
+      await start_cycleMaintenance<system>();
+    });
+
   }

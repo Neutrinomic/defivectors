@@ -29,6 +29,7 @@ import PairMarketData "mo:icrc45";
 import Iter "mo:base/Iter";
 import Time "mo:base/Time";
 import Info "./info";
+import ExperimentalCycles "mo:base/ExperimentalCycles";
 
 actor class Swap({
         NTN_ledger_id;
@@ -202,6 +203,10 @@ actor class Swap({
   // Rechain timers
   ignore Timer.setTimer<system>(#seconds 0, func () : async () {
       await rechain.start_archiving<system>();
+
+      // Tops up all archive canisters with cycles
+      await rechain.start_archiveCycleMaintenance<system>();
+
   });
   // Autoupgrade ICRC3 archives every time this canister is upgraded
   ignore Timer.setTimer<system>(#seconds 1, func () : async () {
@@ -599,6 +604,13 @@ actor class Swap({
 
     public query func canister_info() : async Info.CanisterInfo {
         _info.info();
+    };
+
+
+    public shared func deposit_cycles() : async () {
+        let amount = ExperimentalCycles.available();
+        let accepted = ExperimentalCycles.accept<system>(amount);
+        assert (accepted == amount);
     };
 
 };
