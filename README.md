@@ -258,3 +258,17 @@ The test environment deploys:
 The first test ensures that the entire system functions correctly: vectors are created, ledger indexing is operational, prices are retrieved, tokens are traded, transactions are logged, and the traded tokens reach their destination addresses. 
 
 The second test initiates 1000 vectors, half of which are ICP->ckBTC and the other half ckBTC->ICP, all with variable pseudo-random algorithm parameters. The system then sends tokens to their source addresses and allows sufficient time for these vectors to find matches. The outcome is several thousand trade transactions that are deterministically snapshotted. Any alterations in the vector code algorithms will produce a different snapshot, triggering an alert to signal the change. Additionally, these snapshots can be scrutinized to verify that trades have occurred as expected.
+
+
+## Verify build
+
+Run inside dev container using VSCode for safer verification _OR_ install these before you run the command.
+
+```
+npm i -g ic-mops
+npm i -g mocv
+```
+
+```
+./verify.sh
+```
