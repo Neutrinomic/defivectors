@@ -1,6 +1,6 @@
 
 This proposal will upgrade the DeVeFi root canister
-- Remove unnecessary tracking of destination balances in vectors with remote destinations
+- Fix: algo.v1.interval_seconds parameter bug executing trades faster than expected
 
 ## Verify build
 
