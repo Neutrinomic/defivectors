@@ -58,11 +58,11 @@ module {
                     v.destination_rate_usd := rate_destination;
                     switch (v.algo) {
                         case (#v1(algo)) {
-                            let wiggle = Float.sin((Float.fromInt(Nat32.toNat(now - v.created)) / 6.28) / Float.min(1, algo.multiplier_wiggle_seconds)) * algo.multiplier_wiggle;
+                            let wiggle = Float.sin((Float.fromInt(Nat32.toNat(now - v.created)) / 6.28) / Float.max(1, algo.multiplier_wiggle_seconds)) * algo.multiplier_wiggle;
                             let multiplier = algo.multiplier + wiggle;
 
                             v.rate := Float.min(algo.max, (rate_destination / rate_source) * multiplier);
-                            if (v.source_balance_tradable_last_update + Nat32.min(1, algo.interval_seconds) < now) {
+                            if (v.source_balance_tradable_last_update + Nat32.max(1, algo.interval_seconds) < now) {
                                 v.source_balance_tradable_last_update := now;
                                 let tokens_to_add = T.natAmount(algo.interval_release_usd / rate_source, v.source.ledger_decimals);
                                 let tokens_max_tradable = T.natAmount(algo.max_tradable_usd / rate_source, v.source.ledger_decimals);
