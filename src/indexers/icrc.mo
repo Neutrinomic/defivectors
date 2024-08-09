@@ -130,38 +130,45 @@ module {
                 ignore do ? {
                     let vid = get_destination_vector(tr.to)!;
                     let v = Map.get<T.DVectorId, T.DVector>(dvectors, Map.n32hash, vid)!;
+                     
                     let fee = tr.fee!;
-                    v.destination_balance += tr.amount;
-                    
-                    let vtx_id:?Nat64 = do ? { T.DNat64(Blob.toArray(tr.memo!))! };
+                    if (v.remote_destination == false) {
+                        v.destination_balance += tr.amount;
+                        
+                        let vtx_id:?Nat64 = do ? { T.DNat64(Blob.toArray(tr.memo!))! };
 
-                    history.add([v], #destination_in({
-                        vtx_id;
-                        vid = vid;
-                        amount = tr.amount;
-                        fee = fee;
-                    }))
+                        history.add([v], #destination_in({
+                            vtx_id;
+                            vid = vid;
+                            amount = tr.amount;
+                            fee = fee;
+                        }))
+                    }
                 };
 
                 ignore do ? {
                     let vid = get_destination_vector(tr.from)!;
                     let v = Map.get<T.DVectorId, T.DVector>(dvectors, Map.n32hash, vid)!;
+                    
                     let fee = tr.fee!;
 
-                    v.destination_balance -= tr.amount + v.destination.ledger_fee;
+                    if (v.remote_destination == false) {
+                        v.destination_balance -= tr.amount + v.destination.ledger_fee;
 
-                    v.unconfirmed_transactions := Array.filter<T.UnconfirmedTransaction>(
-                        v.unconfirmed_transactions,
-                        func(ut) : Bool {
-                            tr.memo != ?ut.memo;
-                        },
-                    );
+                        v.unconfirmed_transactions := Array.filter<T.UnconfirmedTransaction>(
+                            v.unconfirmed_transactions,
+                            func(ut) : Bool {
+                                tr.memo != ?ut.memo;
+                            },
+                        );
 
-                    history.add([v], #destination_out({
-                        vid = vid;
-                        amount = tr.amount;
-                        fee = fee;
-                    }))
+                        history.add([v], #destination_out({
+                            vid = vid;
+                            amount = tr.amount;
+                            fee = fee;
+                        }))
+                    }
+                    
                 };
 
             };

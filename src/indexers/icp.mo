@@ -114,40 +114,49 @@ module {
                         ignore do ? {
                             let vid = get_destination_vector(tr.to)!;
                             let v = Map.get<T.DVectorId, T.DVector>(dvectors, Map.n32hash, vid)!;
+                         
                             let fee = Nat64.toNat(tr.fee.e8s);
 
-                            v.destination_balance += amount;
+                            if (v.remote_destination == false) {
+                                v.destination_balance += amount;
+                          
+                                let vtx_id:?Nat64 = do ? { T.DNat64(Blob.toArray(t.transaction.icrc1_memo!))! };
 
-                            let vtx_id:?Nat64 = do ? { T.DNat64(Blob.toArray(t.transaction.icrc1_memo!))! };
-
-                            history.add([v], #destination_in({
-                                vtx_id;
-                                vid = vid;
-                                amount = amount;
-                                fee = fee;
-                            }))
-
+                                history.add([v], #destination_in({
+                                    vtx_id;
+                                    vid = vid;
+                                    amount = amount;
+                                    fee = fee;
+                                }))
+                            }
+                           
                         };
 
                         ignore do ? {
                             let vid = get_destination_vector(tr.from)!;
                             let v = Map.get<T.DVectorId, T.DVector>(dvectors, Map.n32hash, vid)!;
+                            
                             let fee = Nat64.toNat(tr.fee.e8s);
 
-                            v.destination_balance -= amount + v.destination.ledger_fee;
-                            
-                            v.unconfirmed_transactions := Array.filter<T.UnconfirmedTransaction>(
-                                v.unconfirmed_transactions,
-                                func(ut) : Bool {
-                                    t.transaction.icrc1_memo != ?ut.memo;
-                                },
-                            );
+                            // We are only tracking the destination balance of local accounts
+                            if (v.remote_destination == false) {
+                                v.destination_balance -= amount + v.destination.ledger_fee;
+                                
+                                // This is here for widhtrawl transactions
+                                v.unconfirmed_transactions := Array.filter<T.UnconfirmedTransaction>(
+                                    v.unconfirmed_transactions,
+                                    func(ut) : Bool {
+                                        t.transaction.icrc1_memo != ?ut.memo;
+                                    },
+                                );
 
-                            history.add([v], #destination_out({
-                                vid = vid;
-                                amount = amount;
-                                fee = fee;
-                            }))
+                                history.add([v], #destination_out({
+                                    vid = vid;
+                                    amount = amount;
+                                    fee = fee;
+                                }))
+                            }
+                        
                         };
                     };
                     case (_) ();
