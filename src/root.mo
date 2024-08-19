@@ -17,6 +17,8 @@ actor class Root(init_args : ?T.RootInitArg) = this {
 
     stable let _init = switch(init_args) { case (?a) { a }; case(null) { Debug.trap("No args provided") } };
 
+    let NTN_GOV = Principal.fromText("eqsml-lyaaa-aaaaq-aacdq-cai");
+
     let DVECTOR_CYCLES = 20_000_000_000_000;
     let DVECTOR_ADDITIONAL_CONTROLLERS : [Principal] = [];
     let DVECTOR_CYCLES_REFILL_SEC = 21600; // 6 hours
@@ -39,7 +41,7 @@ actor class Root(init_args : ?T.RootInitArg) = this {
     let ic = actor("aaaaa-aa"): IC.Self;
 
     public shared({caller}) func add_pair(iargs: T.ProdInitArg) : async () {
-        assert(Principal.isController(caller));
+        assert(Principal.isController(caller) or caller == NTN_GOV);
         
         let full_args : T.InitArg = { iargs with DEFI_AGGREGATOR = _init.DEFI_AGGREGATOR; ICP_ledger_id = _init.ICP_ledger_id; NTN_ledger_id = _init.NTN_ledger_id};
 

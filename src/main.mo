@@ -102,8 +102,8 @@ actor class Swap({
     DEFI_AGGREGATOR;
     whitelisted = [
       // id in defiaggregator config, ledger
-      (LEFT_aggr_id, LEFT_ledger), // ICP
-      (RIGHT_aggr_id, RIGHT_ledger), // BTC
+      (LEFT_aggr_id, LEFT_ledger), 
+      (RIGHT_aggr_id, RIGHT_ledger), 
       (30, NTN_ledger_id) // NTN
     ];
   });
@@ -166,9 +166,25 @@ actor class Swap({
     var paused = false;
   };
 
-  let _indexer_left = IndexerICP.Indexer({
+  stable let _indexer_left_mem_icrc : IndexerICRC.Mem = {
+    var last_indexed_tx = 0; // leave 0 to start from the last one
+    source2vector = Map.new<Ledger.Account, DVectorId>();
+    destination2vector = Map.new<Ledger.Account, DVectorId>();
+    var paused = false;
+  };
+
+  // ICP ledger is not ICRC, so we need another indexer
+  let _indexer_left = if (LEFT_ledger == ICP_ledger_id) IndexerICP.Indexer({
     ledger_id = LEFT_ledger;
     mem = _indexer_left_mem;
+    dvectors = _dvectors;
+    errlog = _errlog;
+    history = _history;
+    monitor = _monitor;
+    metric_key = Monitor.INDEXER_LEFT;
+  }) else IndexerICRC.Indexer({
+    ledger_id = LEFT_ledger;
+    mem = _indexer_left_mem_icrc;
     dvectors = _dvectors;
     errlog = _errlog;
     history = _history;
@@ -560,7 +576,7 @@ actor class Swap({
   public query func monitor_snapshot() : async SnapshotResponse {
     {
       monitor =_monitor.snapshot();
-      indexed_left = _indexer_left_mem.last_indexed_tx;
+      indexed_left = if (LEFT_ledger == ICP_ledger_id) _indexer_left_mem.last_indexed_tx else _indexer_left_mem_icrc.last_indexed_tx;
       indexed_right = _indexer_right_mem.last_indexed_tx;
     }
   };
