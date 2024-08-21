@@ -15,10 +15,12 @@ import Monitor "./monitor";
 import Prim "mo:⛔";
 import ErrLog "./errlog";
 
+
 module {
 
-    let RETRY_EVERY_SEC:Float = 60;
+    let RETRY_EVERY_SEC:Float = 120;
     let MAX_SENT_EACH_CYCLE:Nat = 125;
+
 
     public class Sender({
         errlog : ErrLog.ErrLog;
@@ -31,6 +33,7 @@ module {
             let inst_start = Prim.performanceCounter(1); // 1 is preserving with async
 
             let now = T.now();
+
             var sent_count = 0;
             label sending for ((k, v) in Map.entries(dvectors)) {
                 label vtransactions for (tx in v.unconfirmed_transactions.vals()) {
@@ -40,7 +43,7 @@ module {
                         let time_for_try = Float.toInt(Float.ceil((Float.fromInt(Nat32.toNat(now - tx.timestamp)))/RETRY_EVERY_SEC));
 
                         if (tx.tries >= time_for_try) continue vtransactions;
-                        
+
                         var error = false;
                         try {
                             // Relies on transaction deduplication https://github.com/dfinity/ICRC-1/blob/main/standards/ICRC-1/README.md
@@ -48,7 +51,7 @@ module {
                                 amount = tx.amount - tx.fee;
                                 to = tx.to;
                                 from_subaccount = tx.from.subaccount;
-                                created_at_time = ?Nat64.fromNat((Nat32.toNat(tx.timestamp) * 1000000000));
+                                created_at_time = if(tx.tries < 10)?Nat64.fromNat((Nat32.toNat(tx.timestamp) * 1000000000)) else null;
                                 memo = ?tx.memo;
                                 fee = null;
                             });
@@ -70,14 +73,24 @@ module {
                         
                 };
             };
-            ignore Timer.setTimer<system>(#seconds 2, tick);
             let inst_end = Prim.performanceCounter(1);
             monitor.add(Monitor.SENDER, inst_end - inst_start);
 
         };
 
+
+        public func tick_wrapper<system>() : async () {
+            try {
+               await tick<system>();
+            } catch (e) {
+               errlog.add("sender:tick:" # Error.message(e));
+            };
+            ignore Timer.setTimer<system>(#seconds 2, tick_wrapper);
+
+        };
+
         public func start_timer<system>() {
-        ignore Timer.setTimer<system>(#seconds 2, tick);
+            ignore Timer.setTimer<system>(#seconds 2, tick_wrapper);
         }
     };
 

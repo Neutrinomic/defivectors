@@ -1,7 +1,6 @@
-
 This proposal will upgrade the DeVeFi root canister.
-- allows Neutrinite gov canister to call add_pair
-- allows pairs to be between any two icrc ledgers, not always paired with ICP
+
+- in certain edge cases the sender timer loop was not sending transactions
 
 ## Verify build
 
