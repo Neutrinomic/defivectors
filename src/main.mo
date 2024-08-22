@@ -229,6 +229,15 @@ actor class Swap({
       await rechain.upgrade_archives();
   });
   // ---
+  // TEMPORARY: Fix corrupted memory caused by the withdrawal bug
+  if (RIGHT_ledger == Principal.fromText("buwm7-7yaaa-aaaar-qagva-cai")) {
+    ignore Timer.setTimer<system>(#seconds 10, func() : async () {
+      let nICP_ledger = actor (Principal.toText(RIGHT_ledger)) : Ledger.Self;
+      let vec = Map.get(_dvectors, nhash, 5);
+      vec.destination_balance := await nICP_ledger.icrc1_balance_of(vec.destination.address);
+    });
+  };
+  // ---
 
   let _info = Info.Info();
 

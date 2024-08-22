@@ -41,8 +41,8 @@ module {
                 v.unconfirmed_transactions := Array.filter<T.UnconfirmedTransaction>(
                     v.unconfirmed_transactions,
                     func(tr) : Bool {
-                        tr.amount > tr.fee;
-                    },
+                        tr.amount > tr.fee and tr.tries < 400
+                    }
                 );
 
                 label vtransactions for (tx in v.unconfirmed_transactions.vals()) {
@@ -60,11 +60,11 @@ module {
                                 amount = tx.amount - tx.fee;
                                 to = tx.to;
                                 from_subaccount = tx.from.subaccount;
-                                created_at_time = if(tx.tries < 10)?Nat64.fromNat((Nat32.toNat(tx.timestamp) * 1000000000)) else null;
+                                created_at_time = Nat64.fromNat((Nat32.toNat(tx.timestamp) * 1000000000));
                                 memo = ?tx.memo;
                                 fee = null;
                             });
-                            tx.tries += 1;
+                            tx.tries := time_for_try;
                             sent_count += 1;
                         } catch (e) { // It may reach oneway transaction limit
                             error := true;
