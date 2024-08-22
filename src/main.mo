@@ -445,8 +445,10 @@ actor class Swap({
     #ok pid;
   };
 
-  public query func get_vector(pid : DVectorId) : async ?DVectorShared {
-    T.DVector.toShared(Map.get(_dvectors, nhash, pid));
+  public query({caller}) func get_vector(pid : DVectorId) : async ?DVectorShared {
+    let vec = Map.get(_dvectors, nhash, pid);
+    if (vec.owner == caller) T.DVector.toShared(vec)
+    else T.DVector.toSharedNotOwner(vec);
   };
 
   public query({caller}) func get_architect_vectors({
