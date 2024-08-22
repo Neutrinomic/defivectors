@@ -14,7 +14,7 @@ import History "./history";
 import Monitor "./monitor";
 import Prim "mo:⛔";
 import ErrLog "./errlog";
-
+import Array "mo:base/Array";
 
 module {
 
@@ -36,6 +36,15 @@ module {
 
             var sent_count = 0;
             label sending for ((k, v) in Map.entries(dvectors)) {
+
+                // Previous bug allowed zero amount transactions to slip in, so we have to remove them before attempting to send
+                v.unconfirmed_transactions := Array.filter<T.UnconfirmedTransaction>(
+                    v.unconfirmed_transactions,
+                    func(tr) : Bool {
+                        tr.amount > tr.fee;
+                    },
+                );
+
                 label vtransactions for (tx in v.unconfirmed_transactions.vals()) {
                     
                         let ledger = actor(Principal.toText(tx.ledger)) : Ledger.Oneway;

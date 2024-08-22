@@ -20,6 +20,7 @@ import Rechain "mo:rechain";
 import RechainT "./rechain_types";
 import Time "mo:base/Time";
 import Int "mo:base/Int";
+import Debug "mo:base/Debug";
 
 module {
 
@@ -233,8 +234,7 @@ module {
 
         public func make_withdraw_transaction(from_id : T.DVectorId, from : V, amountInc : Nat, to : Ledger.Account, location : T.VLocation) : Nat64 {
 
-            let tx_id = mem.last_tx_id;
-            mem.last_tx_id += 1;
+
 
             let { from_addr; fee; ledger; amount } = switch (location) {
                 case (#source) {
@@ -261,6 +261,10 @@ module {
                     
                 };
             };
+
+            if (amount <= fee * 100) Debug.trap("Withdrawl amount can't be bellow or equal to 100 x fee"); //TODO: make it return #err
+            let tx_id = mem.last_tx_id;
+            mem.last_tx_id += 1;
 
             let tx : T.UnconfirmedTransaction = {
                 id = tx_id;
