@@ -15,6 +15,7 @@ import Monitor "./monitor";
 import Prim "mo:⛔";
 import ErrLog "./errlog";
 import Array "mo:base/Array";
+import Int "mo:base/Int";
 
 module {
 
@@ -49,7 +50,7 @@ module {
                     
                         let ledger = actor(Principal.toText(tx.ledger)) : Ledger.Oneway;
 
-                        let time_for_try = Float.toInt(Float.ceil((Float.fromInt(Nat32.toNat(now - tx.timestamp)))/RETRY_EVERY_SEC));
+                        let time_for_try = Int.abs(Float.toInt(Float.ceil((Float.fromInt(Nat32.toNat(now - tx.timestamp)))/RETRY_EVERY_SEC)));
 
                         if (tx.tries >= time_for_try) continue vtransactions;
 
@@ -60,7 +61,7 @@ module {
                                 amount = tx.amount - tx.fee;
                                 to = tx.to;
                                 from_subaccount = tx.from.subaccount;
-                                created_at_time = Nat64.fromNat((Nat32.toNat(tx.timestamp) * 1000000000));
+                                created_at_time = ?Nat64.fromNat((Nat32.toNat(tx.timestamp) * 1000000000));
                                 memo = ?tx.memo;
                                 fee = null;
                             });

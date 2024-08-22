@@ -233,7 +233,7 @@ actor class Swap({
   if (RIGHT_ledger == Principal.fromText("buwm7-7yaaa-aaaar-qagva-cai")) {
     ignore Timer.setTimer<system>(#seconds 10, func() : async () {
       let nICP_ledger = actor (Principal.toText(RIGHT_ledger)) : Ledger.Self;
-      let vec = Map.get(_dvectors, nhash, 5);
+      let ?vec = Map.get(_dvectors, nhash, 5:DVectorId) else return ();
       vec.destination_balance := await nICP_ledger.icrc1_balance_of(vec.destination.address);
     });
   };
@@ -455,9 +455,9 @@ actor class Swap({
   };
 
   public query({caller}) func get_vector(pid : DVectorId) : async ?DVectorShared {
-    let vec = Map.get(_dvectors, nhash, pid);
-    if (vec.owner == caller) T.DVector.toShared(vec)
-    else T.DVector.toSharedNotOwner(vec);
+    let ?vec = Map.get(_dvectors, nhash, pid) else return null;
+    if (vec.owner == caller) T.DVector.toShared(?vec)
+    else T.DVector.toSharedNotOwner(?vec);
   };
 
   public query({caller}) func get_architect_vectors({
