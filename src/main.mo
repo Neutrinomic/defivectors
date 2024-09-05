@@ -67,7 +67,7 @@ actor class Swap({
   var rechain = Rechain.Chain<RechainT.Action, RechainT.ActionError>({
       settings = ?{Rechain.DEFAULT_SETTINGS with supportedBlocks = [{
         block_type = "47exchange";
-        url = "https:/"#"/github.com/Neutrinomic/wg_defi/blob/main/icrc-47/ICRC47.md";
+        url = "https://github.com/Neutrinomic/wg_defi/blob/main/icrc-47/ICRC47.md";
       }]};
       mem = chain_mem;
       encodeBlock = RechainT.encodeBlock;
@@ -230,13 +230,13 @@ actor class Swap({
   });
   // ---
   // TEMPORARY: Fix corrupted memory caused by the withdrawal bug
-  if (RIGHT_ledger == Principal.fromText("hvgxa-wqaaa-aaaaq-aacia-cai")) {
-    ignore Timer.setTimer<system>(#seconds 10, func() : async () {
-      let xledger = actor (Principal.toText(RIGHT_ledger)) : Ledger.Self;
-      let ?vec = Map.get(_dvectors, nhash, 4:DVectorId) else return ();
-      vec.source_balance := await xledger.icrc1_balance_of(vec.source.address);
-    });
-  };
+  // if (RIGHT_ledger == Principal.fromText("hvgxa-wqaaa-aaaaq-aacia-cai")) {
+  //   ignore Timer.setTimer<system>(#seconds 10, func() : async () {
+  //     let xledger = actor (Principal.toText(RIGHT_ledger)) : Ledger.Self;
+  //     let ?vec = Map.get(_dvectors, nhash, 4:DVectorId) else return ();
+  //     vec.source_balance := await xledger.icrc1_balance_of(vec.source.address);
+  //   });
+  // };
   // ---
 
   let _info = Info.Info();
