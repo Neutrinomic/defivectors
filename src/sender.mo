@@ -22,7 +22,7 @@ module {
 
     let RETRY_EVERY_SEC:Float = 120;
     let MAX_SENT_EACH_CYCLE:Nat = 125;
-    let retryWindow : Nat64 = 22200_000_000_000;
+    let retryWindow : Nat64 = 72200_000_000_000;
 
 
     public class Sender({
@@ -52,7 +52,7 @@ module {
                 v.unconfirmed_transactions := Array.filter<T.UnconfirmedTransaction>(
                     v.unconfirmed_transactions,
                     func(tr) : Bool {
-                        tr.amount > tr.fee //and tr.tries < 1000
+                        tr.amount > tr.fee and tr.tries < 5
                     }
                 );
 
@@ -71,7 +71,7 @@ module {
                                 amount = tx.amount - tx.fee;
                                 to = tx.to;
                                 from_subaccount = tx.from.subaccount;
-                                created_at_time = null; //?adjustTXWINDOW(nowU64);
+                                created_at_time = ?adjustTXWINDOW(nowU64);
                                 memo = ?tx.memo;
                                 fee = null;
                             });

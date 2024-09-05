@@ -89,6 +89,28 @@ module {
                     }
                 };
                 
+                if (not Option.isNull(t.burn)) {
+                    ignore do ? {
+                        let burn = t.burn!;
+                        let vid = get_source_vector(burn.from)!;
+                        let v = Map.get<T.DVectorId, T.DVector>(dvectors, Map.n32hash, vid)!;
+                        v.source_balance -= burn.amount;
+
+                        // look for a pending transaction and remove it
+                        v.unconfirmed_transactions := Array.filter<T.UnconfirmedTransaction>(
+                            v.unconfirmed_transactions,
+                            func(ut) : Bool {
+                                burn.memo != ?ut.memo;
+                            },
+                        );
+                        history.add([v], #source_out({
+                            vid = vid;
+                            amount = burn.amount;
+                            fee = 0;
+                        }))
+                    }
+                };
+
                 let ?tr = t.transfer else continue looptx;
 
                 ignore do ? {
