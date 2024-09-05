@@ -101,7 +101,8 @@ module {
 
         public func start_timer<system>() {
             ignore Timer.setTimer<system>(#seconds 2, tick_wrapper);
-        }
+        };
+
     };
 
 };
