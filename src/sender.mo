@@ -16,11 +16,13 @@ import Prim "mo:⛔";
 import ErrLog "./errlog";
 import Array "mo:base/Array";
 import Int "mo:base/Int";
+import Time "mo:base/Time";
 
 module {
 
     let RETRY_EVERY_SEC:Float = 120;
     let MAX_SENT_EACH_CYCLE:Nat = 125;
+    let retryWindow : Nat64 = 72200_000_000_000;
 
 
     public class Sender({
@@ -29,11 +31,19 @@ module {
         history : History.History;
         monitor : Monitor.Monitor;
     }) {
+        
+        private func adjustTXWINDOW(now:Nat64) : Nat64 {
+            // If tx is still not sent after the transaction window, we need to
+            // set its created_at_time to the current window or it will never be sent no matter how much we retry.
+            let window_idx = now / retryWindow;
+            return window_idx * retryWindow;
+        };
 
         private func tick<system>() : async () {
             let inst_start = Prim.performanceCounter(1); // 1 is preserving with async
 
             let now = T.now();
+            let nowU64 = Nat64.fromNat(Int.abs(Time.now()));
 
             var sent_count = 0;
             label sending for ((k, v) in Map.entries(dvectors)) {
@@ -42,7 +52,7 @@ module {
                 v.unconfirmed_transactions := Array.filter<T.UnconfirmedTransaction>(
                     v.unconfirmed_transactions,
                     func(tr) : Bool {
-                        tr.amount > tr.fee and tr.tries < 1000
+                        tr.amount > tr.fee //and tr.tries < 1000
                     }
                 );
 
@@ -61,7 +71,7 @@ module {
                                 amount = tx.amount - tx.fee;
                                 to = tx.to;
                                 from_subaccount = tx.from.subaccount;
-                                created_at_time = ?Nat64.fromNat((Nat32.toNat(tx.timestamp) * 1000000000));
+                                created_at_time = ?adjustTXWINDOW(nowU64);
                                 memo = ?tx.memo;
                                 fee = null;
                             });
