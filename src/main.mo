@@ -67,7 +67,7 @@ actor class Swap({
   var rechain = Rechain.Chain<RechainT.Action, RechainT.ActionError>({
       settings = ?{Rechain.DEFAULT_SETTINGS with supportedBlocks = [{
         block_type = "47exchange";
-        url = "https://github.com/Neutrinomic/wg_defi/blob/main/icrc-47/ICRC47.md";
+        url = "https:/"#"/github.com/Neutrinomic/wg_defi/blob/main/icrc-47/ICRC47.md";
       }]};
       mem = chain_mem;
       encodeBlock = RechainT.encodeBlock;

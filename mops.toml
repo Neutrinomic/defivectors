@@ -1,5 +1,5 @@
 [dependencies]
-base = "0.11.3"
+base = "0.12.1"
 map = "9.0.1"
 itertools = "0.1.2"
 vector = "0.2.0"

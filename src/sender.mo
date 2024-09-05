@@ -42,7 +42,7 @@ module {
                 v.unconfirmed_transactions := Array.filter<T.UnconfirmedTransaction>(
                     v.unconfirmed_transactions,
                     func(tr) : Bool {
-                        tr.amount > tr.fee and tr.tries < 400
+                        tr.amount > tr.fee and tr.tries < 1000
                     }
                 );
 
