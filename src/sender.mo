@@ -32,9 +32,10 @@ module {
         monitor : Monitor.Monitor;
     }) {
         
-        private func adjustTXWINDOW(now:Nat64) : Nat64 {
+        private func adjustTXWINDOW(ts: Nat64, now:Nat64) : Nat64 {
             // If tx is still not sent after the transaction window, we need to
             // set its created_at_time to the current window or it will never be sent no matter how much we retry.
+            if (ts >= now - retryWindow) return ts;
             let window_idx = now / retryWindow;
             return window_idx * retryWindow;
         };
@@ -71,7 +72,7 @@ module {
                                 amount = tx.amount - tx.fee;
                                 to = tx.to;
                                 from_subaccount = tx.from.subaccount;
-                                created_at_time = ?adjustTXWINDOW(nowU64);
+                                created_at_time = ?adjustTXWINDOW(Nat64.fromNat((Nat32.toNat(tx.timestamp) * 1000000000)), nowU64);
                                 memo = ?tx.memo;
                                 fee = null;
                             });
@@ -99,18 +100,8 @@ module {
         };
 
 
-        public func tick_wrapper<system>() : async () {
-            try {
-               await tick<system>();
-            } catch (e) {
-               errlog.add("sender:tick:" # Error.message(e));
-            };
-            ignore Timer.setTimer<system>(#seconds 2, tick_wrapper);
-
-        };
-
         public func start_timer<system>() {
-            ignore Timer.setTimer<system>(#seconds 2, tick_wrapper);
+            ignore Timer.recurringTimer<system>(#seconds 2, tick);
         };
 
     };

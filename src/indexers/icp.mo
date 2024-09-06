@@ -12,6 +12,7 @@ import Blob "mo:base/Blob";
 import Monitor "../monitor";
 import Prim "mo:⛔";
 import ErrLog "../errlog";
+import Time "mo:base/Time";
 
 module {
 
@@ -194,7 +195,13 @@ module {
             transactions : [Ledger.CandidBlock];
         };
 
+        var lock:Int = 0;
+        let MAX_TIME_LOCKED:Int = 60_000_000_000; // 60 seconds
+
         private func proc() : async () {
+            let now = Time.now();
+            if (now - lock < MAX_TIME_LOCKED) return;
+            lock := now;
             if (mem.paused) return;
              let inst_start = Prim.performanceCounter(1); // 1 is preserving with async
 
@@ -207,13 +214,16 @@ module {
                 mem.last_indexed_tx := Nat64.toNat(rez.chain_length) - 1;
             };
 
+            let query_start = Nat64.fromNat(mem.last_indexed_tx);
             let rez = await ledger.query_blocks({
-                start = Nat64.fromNat(mem.last_indexed_tx);
+                start = query_start;
                 length = 1000;
             });
+            
+            if (query_start != Nat64.fromNat(mem.last_indexed_tx)) { lock :=0; return; };// We may have another concurrent process
 
             if (rez.archived_blocks.size() == 0) {
-                // We can just process the transactions
+
                 processtx(rez.blocks);
                 mem.last_indexed_tx += rez.blocks.size();
             } else {
@@ -243,7 +253,7 @@ module {
                 );
 
                 for (u in sorted.vals()) {
-                    assert (u.start == Nat64.fromNat(mem.last_indexed_tx));
+                    if (u.start != Nat64.fromNat(mem.last_indexed_tx)) { lock :=0; return; };
                     processtx(u.transactions);
                     mem.last_indexed_tx += u.transactions.size();
                 };
@@ -256,21 +266,14 @@ module {
 
             let inst_end = Prim.performanceCounter(1); // 1 is preserving with async
             monitor.add(metric_key, inst_end - inst_start);
+
+            lock := 0;
         };
 
-        private func qtimer<system>() : async () {
-            try {
-                await proc();
-            } catch (e) {
-                errlog.add("indexers:icp:" # Principal.toText(ledger_id) # ":" # Error.message(e));
-            };
 
-            ignore Timer.setTimer<system>(#seconds 2, qtimer);
-
-        };
 
         public func start_timer<system>() {
-            ignore Timer.setTimer<system>(#seconds 2, qtimer);
+            ignore Timer.recurringTimer<system>(#seconds 2, proc);
         };
     };
 

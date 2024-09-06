@@ -87,14 +87,6 @@ module {
             v.active := v.source_balance_tradable > v.source.ledger_fee * 300;
         };
 
-        private func tick<system>() : async () {
-            try {
-                await settle();
-            } catch (e) {
-                errlog.add("matching:settle:" # Error.message(e));
-            };
-            ignore Timer.setTimer<system>(#seconds 2, tick);
-        };
 
         public func settle() : async () {
 
@@ -320,7 +312,8 @@ module {
         };
 
         public func start_timer<system>() {
-            ignore Timer.setTimer<system>(#seconds 0, tick);
+            ignore Timer.recurringTimer<system>(#seconds 2, settle);
+
         };
     };
 
