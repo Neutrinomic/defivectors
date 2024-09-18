@@ -87,18 +87,22 @@ actor class Root(init_args : ?T.RootInitArg) = this {
   private func update_canister_settings<system>() : async () {
 
     for (dvec in Vector.vals(_pairs)) {
+      try {
+        let status = await ic.canister_status({ canister_id = dvec.canister_id });
 
-      let status = await ic.canister_status({ canister_id = dvec.canister_id });
-
-      await ic.update_settings({
-        canister_id = dvec.canister_id;
-        settings = {
-          freezing_threshold = ?1296000; // 15 days
-          controllers = ?status.settings.controllers;
-          memory_allocation = null;
-          compute_allocation = ?1;
-        }});
-    }
+        await ic.update_settings({
+          canister_id = dvec.canister_id;
+          settings = {
+            freezing_threshold = ?432000; // 5 days
+            controllers = ?status.settings.controllers;
+            memory_allocation = null;
+            compute_allocation = ?1;
+          };
+        });
+      } catch (err) {
+        _eventlog.add("ERR : Failed update_canister_settings " # Error.message(err));
+      };
+    };
   };
 
   private func new_pair_canister<system>(initArg : T.InitArg) : async (DVector.Swap) {
@@ -201,19 +205,15 @@ actor class Root(init_args : ?T.RootInitArg) = this {
   ignore Timer.setTimer<system>(
     #seconds 1,
     func() : async () {
-      _eventlog.add("OK : Upgrade of pair canisters started");
-
-      await upgrade_pair_canisters<system>();
-
-      _eventlog.add("OK : Upgrade of pair canisters ended");
-
-      _eventlog.add("OK : Refilling cycles started");
-      await start_cycleMaintenance<system>();
-      _eventlog.add("OK : Refilling cycles ended");
 
       _eventlog.add("OK : Updating pair canisters settings started");
       await update_canister_settings<system>();
       _eventlog.add("OK : Updating pair canisters settings ended");
+
+      _eventlog.add("OK : Upgrade of pair canisters started");
+      await upgrade_pair_canisters<system>();
+      _eventlog.add("OK : Upgrade of pair canisters ended");
+
     },
   );
 
@@ -224,8 +224,6 @@ actor class Root(init_args : ?T.RootInitArg) = this {
   public query func show_log() : async [?Text] {
     _eventlog.get();
   };
-
-
 
   ignore Timer.setTimer<system>(
     #seconds 120,
