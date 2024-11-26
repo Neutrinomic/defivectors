@@ -1,0 +1,1 @@
+{"cells":[{"kind":2,"language":"javascript","value":"let can = await ic(\"wxer6-3yaaa-aaaal-qjnua-cai\");\n\nlet lg = await can.show_log();\n\nlg.reverse();\n\nlog(lg)"}]}

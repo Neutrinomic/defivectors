@@ -93,10 +93,10 @@ actor class Root(init_args : ?T.RootInitArg) = this {
         await ic.update_settings({
           canister_id = dvec.canister_id;
           settings = {
-            freezing_threshold = ?432000; // 5 days
+            freezing_threshold = ?1296000; // 5 days
             controllers = ?status.settings.controllers;
             memory_allocation = null;
-            compute_allocation = ?1;
+            compute_allocation = null;
           };
         });
       } catch (err) {
@@ -124,7 +124,7 @@ actor class Root(init_args : ?T.RootInitArg) = this {
           freezing_threshold = ?1296000;
           controllers = ?Array.append([this_canister], DVECTOR_ADDITIONAL_CONTROLLERS);
           memory_allocation = null;
-          compute_allocation = ?1;
+          compute_allocation = null;
         };
       }
     );
@@ -143,20 +143,21 @@ actor class Root(init_args : ?T.RootInitArg) = this {
   private func upgrade_pair_canisters<system>() : async () {
 
     for (dvec in Vector.vals(_pairs)) {
-      let myActor = actor (Principal.toText(dvec.canister_id)) : DVector.Swap;
-      let full_args : T.InitArg = {
-        dvec.init_args with DEFI_AGGREGATOR = _init.DEFI_AGGREGATOR;
-        ICP_ledger_id = _init.ICP_ledger_id;
-        NTN_ledger_id = _init.NTN_ledger_id;
-      };
-
-      // 1. Stop canister
-      await ic.stop_canister({ canister_id = dvec.canister_id });
-
-      // 2. Upgrade
-      let DVectorMgr = (system DVector.Swap)(#upgrade myActor);
-
       try {
+        let myActor = actor (Principal.toText(dvec.canister_id)) : DVector.Swap;
+        let full_args : T.InitArg = {
+          dvec.init_args with DEFI_AGGREGATOR = _init.DEFI_AGGREGATOR;
+          ICP_ledger_id = _init.ICP_ledger_id;
+          NTN_ledger_id = _init.NTN_ledger_id;
+        };
+
+        // 1. Stop canister
+        await ic.stop_canister({ canister_id = dvec.canister_id });
+
+        // 2. Upgrade
+        let DVectorMgr = (system DVector.Swap)(#upgrade myActor);
+
+      
         ignore await DVectorMgr(full_args);
 
         // 3. Start canister
