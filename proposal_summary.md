@@ -1,6 +1,6 @@
 This proposal will upgrade the DeVeFi root canister.
 
-- Remove CPU resource allocation to each pair canister.
+- Optimize cycle usage for each pair canister.
 
 ## Verify build
 

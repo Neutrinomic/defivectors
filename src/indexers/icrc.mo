@@ -274,7 +274,7 @@ module {
         };
 
         public func start_timer<system>() {
-            ignore Timer.recurringTimer<system>(#seconds 2, proc);
+            ignore Timer.recurringTimer<system>(#seconds 30, proc);
         };
     };
 
